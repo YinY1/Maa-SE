@@ -1,0 +1,15 @@
+[package]
+name = "maa-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+maa-sys.workspace = true
+maa-types.workspace = true
+tauri = { workspace = true, optional = true }
+
+[features]
+default = ["tauri-handle"]
+tauri-handle = ["tauri"]
