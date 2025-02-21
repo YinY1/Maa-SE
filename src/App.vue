@@ -1,10 +1,12 @@
 <template>
   <LeftBar />
+  <Task />
   <MainPage />
 </template>
 
 <script setup lang="ts">
 import MainPage from './views/MainPage.vue';
+import Task from './components/Task.vue';
 import LeftBar from './components/LeftBar.vue';
 </script>
 
