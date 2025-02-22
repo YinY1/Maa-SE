@@ -15,17 +15,17 @@ name = "maa_se_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build.workspace = true
+tauri-build = { workspace = true, features = [] }
 
 [dependencies]
-tauri.workspace = true
-tauri-plugin-opener.workspace = true
-
-serde.workspace = true
+tauri = { workspace = true, features = [] }
+tauri-plugin-opener = { workspace = true, features = [] }
 serde_json.workspace = true
+
 maa-sys.workspace = true
 maa-types.workspace = true
 anyhow.workspace = true
+env_logger.workspace = true
 
 maa-core = { path = "../maa-core", feature = ["tauri-handle"] }
 maa-cfg = { path = "../maa-cfg" }
