@@ -35,16 +35,16 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref } from 'vue'
 
 const navigation = ref([
-  { name: "开始唤醒", href: "#", current: true, checked: false },
-  { name: "自动公招", href: "#", current: false, checked: false },
-  { name: "基建换班", href: "#", current: false, checked: false },
-  { name: "获取信用", href: "#", current: false, checked: false },
-  { name: "刷理智", href: "#", current: false, checked: false },
-  { name: "领取奖励", href: "#", current: false, checked: false },
-  { name: "集成战略", href: "#", current: false, checked: false },
-  { name: "生息演算", href: "#", current: false, checked: false },
-]);
+  { name: '开始唤醒', href: '#', current: true, checked: false },
+  { name: '自动公招', href: '#', current: false, checked: false },
+  { name: '基建换班', href: '#', current: false, checked: false },
+  { name: '获取信用', href: '#', current: false, checked: false },
+  { name: '刷理智', href: '#', current: false, checked: false },
+  { name: '领取奖励', href: '#', current: false, checked: false },
+  { name: '集成战略', href: '#', current: false, checked: false },
+  { name: '生息演算', href: '#', current: false, checked: false },
+])
 </script>
