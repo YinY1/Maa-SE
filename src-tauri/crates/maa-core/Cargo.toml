@@ -9,7 +9,9 @@ anyhow.workspace = true
 maa-sys.workspace = true
 maa-types.workspace = true
 tauri = { workspace = true, optional = true }
+dashmap.workspace = true
+log.workspace = true
+strum = { workspace = true, features = ["derive"] }
 
 [features]
-default = ["tauri-handle"]
 tauri-handle = ["tauri"]

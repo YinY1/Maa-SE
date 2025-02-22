@@ -1,85 +1,80 @@
 use std::ffi::{CStr, c_char, c_void};
 
+use log::Level;
 use maa_types::primitive::AsstMsgId;
+use strum::{Display, EnumString, FromRepr};
 
 #[cfg(feature = "tauri-handle")]
 /// default callback function
 ///
 /// # Safety
 ///
-/// This function is unsafe because it passes C pointer from DLL and
-/// dereferences the `app` pointer.
+/// This function is unsafe because it passes C pointer from DLL.
 ///
 /// # Parameters
 ///
 /// - `code`: message code, see `AsstMsgCode`
 /// - `json_raw`: message details in JSON c_str pointer
-/// - `app`: pointer to `tauri::AppHandle`
-pub unsafe extern "C" fn default_callback_tauri(
+pub unsafe extern "C" fn default_callback_log(
     code: AsstMsgId,
     json_raw: *const c_char,
-    app: *mut c_void,
+    _: *mut c_void,
 ) {
-    use tauri::{AppHandle, Emitter as _};
-    unsafe {
-        let json_str = CStr::from_ptr(json_raw).to_str().unwrap();
-        if let Some(handle) = (app as *mut AppHandle).as_ref() {
-            handle
-                .emit(
-                    "callback-log",
-                    format!("code: {}, details {}", code, json_str),
-                )
-                .unwrap();
-        }
+    let json_str = unsafe { CStr::from_ptr(json_raw).to_str().unwrap() };
+    let msg_type = AsstMsgCode::from_repr(code).unwrap_or_default();
+    match msg_type.level() {
+        Level::Error => log::error!("[{}] {}", msg_type, json_str),
+        Level::Warn => log::warn!("[{}] {}", msg_type, json_str),
+        Level::Info => log::info!("[{}] {}", msg_type, json_str),
+        Level::Debug => log::debug!("[{}] {}", msg_type, json_str),
+        Level::Trace => log::trace!("[{}] {}", msg_type, json_str),
     }
 }
 
+#[derive(Default, Debug, Display, FromRepr)]
+#[repr(i32)]
 pub enum AsstMsgCode {
     /* Global Info */
-    InternalError = 0,     // 内部错误
-    InitFailed = 1,        // 初始化失败
-    ConnectionInfo = 2,    // 连接相关信息
-    AllTasksCompleted = 3, // 全部任务完成
-    AsyncCallInfo = 4,     // 外部异步调用信息
-    Destroyed = 5,         // 实例已销毁
+    /// 内部错误
+    InternalError      = 0,
+    /// 初始化失败
+    InitFailed         = 1,
+    /// 连接相关信息
+    ConnectionInfo     = 2,
+    /// 全部任务完成
+    AllTasksCompleted  = 3,
+    /// 外部异步调用信息
+    AsyncCallInfo      = 4,
+    /// 实例已销毁
+    Destroyed          = 5,
 
     /* TaskChain Info */
-    TaskChainError = 10000,     // 任务链执行/识别错误
-    TaskChainStart = 10001,     // 任务链开始
-    TaskChainCompleted = 10002, // 任务链完成
-    TaskChainExtraInfo = 10003, // 任务链额外信息
-    TaskChainStopped = 10004,   // 任务链手动停止
+    /// 任务链执行/识别错误
+    TaskChainError     = 10000,
+    /// 任务链开始
+    TaskChainStart     = 10001,
+    /// 任务链完成
+    TaskChainCompleted = 10002,
+    /// 任务链额外信息
+    TaskChainExtraInfo = 10003,
+    /// 任务链手动停止
+    TaskChainStopped   = 10004,
 
     /* SubTask Info */
-    SubTaskError = 20000,     // 原子任务执行/识别错误
-    SubTaskStart = 20001,     // 原子任务开始
-    SubTaskCompleted = 20002, // 原子任务完成
-    SubTaskExtraInfo = 20003, // 原子任务额外信息
-    SubTaskStopped = 20004,   // 原子任务手动停止
-}
+    /// 原子任务执行/识别错误
+    SubTaskError       = 20000,
+    /// 原子任务开始
+    SubTaskStart       = 20001,
+    /// 原子任务完成
+    SubTaskCompleted   = 20002,
+    /// 原子任务额外信息
+    SubTaskExtraInfo   = 20003,
+    /// 原子任务手动停止
+    SubTaskStopped     = 20004,
 
-impl From<AsstMsgId> for AsstMsgCode {
-    fn from(id: AsstMsgId) -> Self {
-        match id {
-            0 => AsstMsgCode::InternalError,
-            1 => AsstMsgCode::InitFailed,
-            2 => AsstMsgCode::ConnectionInfo,
-            3 => AsstMsgCode::AllTasksCompleted,
-            4 => AsstMsgCode::AsyncCallInfo,
-            5 => AsstMsgCode::Destroyed,
-            10000 => AsstMsgCode::TaskChainError,
-            10001 => AsstMsgCode::TaskChainStart,
-            10002 => AsstMsgCode::TaskChainCompleted,
-            10003 => AsstMsgCode::TaskChainExtraInfo,
-            10004 => AsstMsgCode::TaskChainStopped,
-            20000 => AsstMsgCode::SubTaskError,
-            20001 => AsstMsgCode::SubTaskStart,
-            20002 => AsstMsgCode::SubTaskCompleted,
-            20003 => AsstMsgCode::SubTaskExtraInfo,
-            20004 => AsstMsgCode::SubTaskStopped,
-            _ => unreachable!("Invalid AsstMsgId: {}", id),
-        }
-    }
+    /// 未知状态
+    #[default]
+    Unknown            = -1,
 }
 
 impl AsstMsgCode {
@@ -90,5 +85,69 @@ impl AsstMsgCode {
                 | AsstMsgCode::TaskChainCompleted
                 | AsstMsgCode::SubTaskCompleted
         )
+    }
+
+    pub fn level(&self) -> Level {
+        match self {
+            AsstMsgCode::Unknown
+            | AsstMsgCode::InitFailed
+            | AsstMsgCode::InternalError
+            | AsstMsgCode::TaskChainError
+            | AsstMsgCode::SubTaskError => Level::Error,
+
+            AsstMsgCode::ConnectionInfo => Level::Warn,
+
+            AsstMsgCode::Destroyed
+            | AsstMsgCode::TaskChainStart
+            | AsstMsgCode::TaskChainCompleted
+            | AsstMsgCode::TaskChainStopped
+            | AsstMsgCode::SubTaskStart
+            | AsstMsgCode::SubTaskCompleted
+            | AsstMsgCode::SubTaskStopped
+            | AsstMsgCode::SubTaskExtraInfo
+            | AsstMsgCode::TaskChainExtraInfo
+            | AsstMsgCode::AllTasksCompleted => Level::Info,
+
+            AsstMsgCode::AsyncCallInfo => Level::Debug,
+        }
+    }
+}
+
+#[derive(Debug, EnumString)]
+pub enum ConnectionInfoType {
+    /// 已连接，注意此时的 uuid 字段值为空（下一步才是获取）
+    Connected,
+    /// 已获取到设备唯一码
+    UuidGot,
+    /// 分辨率不被支持
+    UnsupportedResolution,
+    /// 分辨率获取错误
+    ResolutionError,
+    /// 连接断开（adb / 模拟器 炸了），正在重连
+    Reconnecting,
+    /// 连接断开（adb / 模拟器 炸了），重连成功
+    Reconnected,
+    /// 连接断开（adb / 模拟器 炸了），并重试失败
+    Disconnect,
+    /// 截图失败（adb / 模拟器 炸了），并重试失败
+    ScreencapFailed,
+    /// 不支持的触控模式
+    TouchModeNotAvailable,
+}
+
+impl ConnectionInfoType {
+    pub fn level(&self) -> Level {
+        match self {
+            ConnectionInfoType::UnsupportedResolution
+            | ConnectionInfoType::ResolutionError
+            | ConnectionInfoType::ScreencapFailed
+            | ConnectionInfoType::TouchModeNotAvailable => Level::Error,
+
+            ConnectionInfoType::Connected
+            | ConnectionInfoType::UuidGot
+            | ConnectionInfoType::Reconnecting
+            | ConnectionInfoType::Reconnected
+            | ConnectionInfoType::Disconnect => Level::Info,
+        }
     }
 }
