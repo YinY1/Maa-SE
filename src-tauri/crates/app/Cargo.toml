@@ -27,5 +27,5 @@ maa-types.workspace = true
 anyhow.workspace = true
 env_logger.workspace = true
 
-maa-core = { path = "../maa-core", feature = ["tauri-handle"] }
+maa-core = { path = "../maa-core", features = ["tauri-handle"] }
 maa-cfg = { path = "../maa-cfg" }

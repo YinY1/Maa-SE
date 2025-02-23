@@ -11,7 +11,7 @@ pub(crate) async fn start_core(task_list: State<'_, TaskList>) -> CommandResult 
     spawn_blocking(move || maa_core::run_core_tauri(task_list))
         .await
         .unwrap()
-        .map_err(|e| e.to_string())
+        .map_err(|e| format!("{e:?}"))
 }
 
 #[tauri::command]
@@ -34,7 +34,7 @@ pub(crate) fn update_task(
     let cfg_type = name.parse()?;
     update_config(cfg_type, params)
         .context("update config")
-        .map_err(|e| e.to_string())
+        .map_err(|e| format!("{e:?}"))
 }
 
 #[tauri::command]
