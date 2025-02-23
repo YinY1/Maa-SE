@@ -5,7 +5,7 @@ use maa_cfg::{Config, ConfigType};
 
 static CONFIG: LazyLock<Mutex<Option<Config>>> = LazyLock::new(|| Mutex::new(None));
 
-pub fn update_config(cfg_type: ConfigType, content: &str) -> anyhow::Result<()> {
+pub fn update_config(cfg_type: ConfigType, contents: &str) -> anyhow::Result<()> {
     let mut lock = CONFIG.lock().unwrap();
     if lock.is_none() {
         let cfg = Config::load(None).context("load default cfg")?;
@@ -13,6 +13,6 @@ pub fn update_config(cfg_type: ConfigType, content: &str) -> anyhow::Result<()> 
     }
     lock.as_mut()
         .unwrap()
-        .set(cfg_type, content)
+        .set_and_write(cfg_type, contents)
         .context("set cfg")
 }

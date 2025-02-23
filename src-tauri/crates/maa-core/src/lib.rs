@@ -1,6 +1,8 @@
 #![feature(inherent_str_constructors)]
+#![deny(warnings)]
 
 use std::{
+    env::current_exe,
     ffi::c_void,
     sync::{
         Arc,
@@ -39,7 +41,8 @@ pub fn run_core(
         .context("load core")?;
 
     trace!("load resource");
-    Assistant::load_resource(".").context("load resource")?;
+    let exe_path = current_exe().context("get exe path")?;
+    Assistant::load_resource(exe_path.parent().unwrap()).context("load resource")?;
 
     let assistant = Assistant::new(callback, arg);
 
