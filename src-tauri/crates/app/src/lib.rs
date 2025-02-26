@@ -1,15 +1,20 @@
-mod config;
+#![deny(warnings)]
+
 mod core;
 
-use core::{disable_task, start_core, stop_core, update_task};
+use core::{run_daily, stop_core, update_config};
+use std::sync::{Arc, Mutex};
 
-use maa_core::{tauri_logger::Logger, TaskList};
+use anyhow::Context;
+use maa_cfg::Config;
+use maa_core::tauri_logger::Logger;
 use tauri::AppHandle;
 
 pub(crate) type CommandResult = Result<(), String>;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+pub fn run() -> anyhow::Result<()> {
+    let config_state = Config::load(None).context("load configs")?;
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
@@ -17,14 +22,14 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            start_core,
+            run_daily,
             stop_core,
-            update_task,
-            disable_task,
+            update_config
         ])
-        .manage(TaskList::default())
+        .manage(Arc::new(Mutex::new(config_state)))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+    Ok(())
 }
 
 fn build_logger(handle: AppHandle) {

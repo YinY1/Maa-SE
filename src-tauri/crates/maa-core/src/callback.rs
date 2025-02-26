@@ -113,7 +113,7 @@ impl AsstMsgCode {
     }
 }
 
-#[derive(Debug, EnumString)]
+#[derive(Debug, Display, EnumString)]
 pub enum ConnectionInfoType {
     /// 已连接，注意此时的 uuid 字段值为空（下一步才是获取）
     Connected,

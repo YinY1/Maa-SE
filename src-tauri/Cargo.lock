@@ -2145,6 +2145,7 @@ dependencies = [
  "anyhow",
  "log",
  "maa-types",
+ "serde",
  "serde_json",
  "strum",
 ]
@@ -2156,8 +2157,11 @@ dependencies = [
  "anyhow",
  "dashmap",
  "log",
+ "maa-cfg",
  "maa-sys",
  "maa-types",
+ "serde",
+ "serde_json",
  "strum",
  "tauri",
 ]
