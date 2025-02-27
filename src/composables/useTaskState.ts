@@ -108,12 +108,12 @@ async function updateTaskConfig(enable: boolean): Promise<void> {
 async function toggleTask(): Promise<void> {
   try {
     if (isRunning.value) {
-      await invoke('stop_core')
       isRunning.value = false
+      await invoke('stop_core')
     } else {
       console.log('开始执行任务')
-      await invoke('run_daily')
       isRunning.value = true
+      await invoke('run_daily')
     }
   } catch (error) {
     isRunning.value = false
