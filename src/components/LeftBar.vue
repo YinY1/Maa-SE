@@ -1,9 +1,6 @@
 <template>
-  <head>
-    <link href="/src/assets/styles/styles.css" rel="stylesheet" />
-  </head>
   <div
-    class="fixed inset-y-0 left-0 z-50 block w-20 overflow-y-auto bg-gray-900 pb-4"
+    class="fixed inset-y-0 left-0 z-50 block w-20 overflow-y-auto border-r border-gray-200 bg-white pb-4 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
   >
     <div class="flex h-16 shrink-0 items-center justify-center">
       <img
@@ -18,8 +15,8 @@
             :href="item.href"
             :class="[
               item.current
-                ? 'bg-gray-800 text-white'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-white',
+                ? 'bg-indigo-100 text-indigo-600 dark:bg-gray-700 dark:text-white'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-indigo-600 dark:text-gray-300 dark:hover:bg-gray-700',
               'group flex gap-x-3 rounded-md p-3 text-sm/6 font-semibold',
             ]"
           >
@@ -27,7 +24,7 @@
               :is="item.icon"
               class="size-6 shrink-0"
               aria-hidden="true"
-            />
+            ></component>
             <span class="sr-only">{{ item.name }}</span>
           </a>
         </li>
