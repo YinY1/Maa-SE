@@ -1,26 +1,18 @@
 <template>
-  <LeftBar></LeftBar>
-  <Task></Task>
-  <MainPage></MainPage>
+  <div class="flex min-h-screen bg-white dark:bg-gray-900">
+    <LeftBar />
+    <div class="flex flex-1 pl-20">
+      <!-- 使内容不被 LeftBar 覆盖 -->
+      <Task />
+      <TaskConfig />
+      <LogViewer />
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import LeftBar from './components/LeftBar.vue'
+import LogViewer from './components/LogViewer.vue'
 import Task from './components/Task.vue'
-import MainPage from './views/MainPage.vue'
+import TaskConfig from './components/TaskConfig.vue'
 </script>
-
-<style>
-html {
-  height: 100%;
-  background-color: white;
-}
-
-body {
-  height: 100%;
-  margin: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, sans-serif;
-}
-</style>
