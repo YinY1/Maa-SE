@@ -1,8 +1,7 @@
 <template>
-  <div class="flex min-h-screen bg-white dark:bg-gray-900">
+  <div class="flex h-screen overflow-hidden bg-white dark:bg-gray-900">
     <LeftBar />
-    <div class="flex flex-1 pl-20">
-      <!-- 使内容不被 LeftBar 覆盖 -->
+    <div class="flex h-full flex-1 overflow-hidden pl-20">
       <Task />
       <TaskConfig />
       <LogViewer />
