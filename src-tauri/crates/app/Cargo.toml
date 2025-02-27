@@ -25,7 +25,11 @@ serde_json.workspace = true
 maa-sys.workspace = true
 maa-types.workspace = true
 anyhow.workspace = true
-env_logger.workspace = true
+log.workspace = true
+log4rs.workspace = true
 
-maa-core = { path = "../maa-core", features = ["tauri-handle"] }
+maa-core = { path = "../maa-core", features = [
+    "tauri-handle",
+    "dynamic-log-level",
+] }
 maa-cfg = { path = "../maa-cfg" }

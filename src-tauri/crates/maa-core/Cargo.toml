@@ -8,13 +8,14 @@ license.workspace = true
 anyhow.workspace = true
 maa-sys.workspace = true
 maa-types.workspace = true
+maa-cfg = { path = "../maa-cfg" }
 tauri = { workspace = true, optional = true }
-dashmap.workspace = true
 log.workspace = true
+log4rs = { workspace = true, optional = true }
 strum.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-maa-cfg = { path = "../maa-cfg" }
 
 [features]
 tauri-handle = ["tauri"]
+dynamic-log-level = ["log4rs"]

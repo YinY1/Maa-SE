@@ -1,13 +1,15 @@
 use anyhow::Context;
 use maa_cfg::Parameters;
-use maa_core::ConfigState;
-use tauri::{async_runtime::spawn_blocking, State};
+use maa_core::{
+    tauri_logger::{log_config, LogHandleState},
+    ConfigState,
+};
+use tauri::{async_runtime::spawn_blocking, AppHandle, State};
 
 use crate::CommandResult;
 
 #[tauri::command]
 pub(crate) async fn run_daily(configs: State<'_, ConfigState>) -> CommandResult {
-    let configs = configs.inner().clone();
     let tasks = configs.lock().unwrap().available_daily_tasks();
     // TODO: 验证blocking的合理性
     spawn_blocking(move || maa_core::run_core_tauri(tasks))
@@ -37,4 +39,18 @@ pub(crate) fn update_config(
         .set_and_write(cfg_type, params)
         .context("update config")
         .map_err(|e| format!("{e:?}"))
+}
+
+#[tauri::command]
+pub(crate) fn set_log_level(
+    level: &str,
+    app_handle: AppHandle,
+    log_handle: State<'_, LogHandleState>,
+) -> CommandResult {
+    let level = level
+        .parse()
+        .map_err(|e: log::ParseLevelError| e.to_string())?;
+    let config = log_config(app_handle, level).map_err(|e| format!("{e:?}"))?;
+    log_handle.0.get().unwrap().set_config(config);
+    Ok(())
 }
