@@ -36,24 +36,45 @@ impl std::io::Write for Logger {
 
 #[cfg(feature = "dynamic-log-level")]
 mod dynamic_log {
-    use std::sync::OnceLock;
+    use std::{ops::Deref, sync::OnceLock};
 
     use anyhow::Context;
     use log::LevelFilter;
     use log4rs::{
         Config, Handle,
-        append::{Append, file::FileAppender},
+        append::{
+            Append,
+            rolling_file::{
+                RollingFileAppender,
+                policy::compound::{
+                    CompoundPolicy, roll::fixed_window::FixedWindowRoller,
+                    trigger::size::SizeTrigger,
+                },
+            },
+        },
         config::{Appender, Root},
     };
     use tauri::{AppHandle, Emitter};
 
     use super::{CALLBACK_EVENT, Logger};
 
-    const FILE_APPENDER_NAME: &str = "file";
+    const ROLLING_FILE_APPENDER_NAME: &str = "file";
     const CALLBACK_APPENDER_NAME: &str = "callback";
-    const LOG_FILE_NAME: &str = "maa-se.log";
+    const LOG_FILE_PATH: &str = "debug/maa-se.log";
 
-    pub struct LogHandleState(pub OnceLock<Handle>);
+    const MAX_LOG_SIZE: u64 = 10_000_000; // 10 MB
+    const MAX_LOG_COUNT: u32 = 5;
+
+    #[derive(Default)]
+    pub struct LogHandleState(OnceLock<Handle>);
+
+    impl Deref for LogHandleState {
+        type Target = OnceLock<Handle>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
 
     impl Append for Logger {
         fn append(&self, record: &log::Record) -> anyhow::Result<()> {
@@ -69,23 +90,28 @@ mod dynamic_log {
         fn flush(&self) {}
     }
 
+    // TODO: 优化每次都要重新build一次
     pub fn log_config(handle: AppHandle, level: LevelFilter) -> anyhow::Result<Config> {
-        let file = Appender::builder().build(
-            FILE_APPENDER_NAME,
-            Box::new(
-                FileAppender::builder()
-                    .build(LOG_FILE_NAME)
-                    .context("build file appender")?,
-            ),
-        );
+        let trigger = SizeTrigger::new(MAX_LOG_SIZE);
+        let roller = FixedWindowRoller::builder()
+            .build(&format!("{LOG_FILE_PATH}.{{}}"), MAX_LOG_COUNT) // 保留最多10个备份文件（配合时间清理）
+            .unwrap();
+        let appender = RollingFileAppender::builder()
+            .build(
+                LOG_FILE_PATH,
+                Box::new(CompoundPolicy::new(Box::new(trigger), Box::new(roller))),
+            )
+            .unwrap();
+        let rolling = Appender::builder().build(ROLLING_FILE_APPENDER_NAME, Box::new(appender));
         let callback =
             Appender::builder().build(CALLBACK_APPENDER_NAME, Box::new(Logger::new(handle)));
+
         let root = Root::builder()
-            .appenders([FILE_APPENDER_NAME, CALLBACK_APPENDER_NAME])
+            .appenders([ROLLING_FILE_APPENDER_NAME, CALLBACK_APPENDER_NAME])
             .build(level);
 
         Config::builder()
-            .appenders([callback, file])
+            .appenders([callback, rolling])
             .build(root)
             .context("build log4rs config")
     }

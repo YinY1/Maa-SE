@@ -13,6 +13,7 @@ use std::{
 
 use anyhow::{Context, anyhow};
 use log::trace;
+use serde::Serialize;
 use strum::{Display, EnumString};
 pub use task::*;
 
@@ -56,7 +57,9 @@ impl FromStr for ConfigType {
 
 pub type ConfigValue = serde_json::Value;
 
+#[derive(Serialize)]
 pub struct Config {
+    #[serde(skip)]
     path: PathBuf,
     daily_task: ConfigValue,
     extra_task: ConfigValue,

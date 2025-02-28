@@ -2,8 +2,8 @@
 
 mod core;
 
-use core::{run_daily, set_log_level, stop_core, update_config};
-use std::sync::{Arc, Mutex, OnceLock};
+use core::{get_config, run_daily, set_log_level, stop_core, update_config};
+use std::sync::{Arc, Mutex};
 
 use anyhow::Context;
 use log4rs::{init_config, Handle};
@@ -11,7 +11,7 @@ use maa_cfg::Config;
 use maa_core::tauri_logger::{log_config, LogHandleState};
 use tauri::{AppHandle, Manager};
 
-pub(crate) type CommandResult = Result<(), String>;
+pub(crate) type CommandResult<T> = Result<T, String>;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() -> anyhow::Result<()> {
@@ -20,16 +20,17 @@ pub fn run() -> anyhow::Result<()> {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Arc::new(Mutex::new(config_state))) // TODO: 有没有必要不用mutex
-        .manage(LogHandleState(OnceLock::new()))
+        .manage(LogHandleState::default())
         .setup(|app| {
             let log_handle = init_log(app.handle().clone())?;
-            app.state::<LogHandleState>().0.get_or_init(|| log_handle);
+            app.state::<LogHandleState>().get_or_init(|| log_handle);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             run_daily,
             stop_core,
             update_config,
+            get_config,
             set_log_level,
         ])
         .run(tauri::generate_context!())

@@ -2,9 +2,9 @@ use std::ffi::{CStr, c_char, c_void};
 
 use log::Level;
 use maa_types::primitive::AsstMsgId;
+use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
-#[cfg(feature = "tauri-handle")]
 /// default callback function
 ///
 /// # Safety
@@ -20,9 +20,21 @@ pub unsafe extern "C" fn default_callback_log(
     json_raw: *const c_char,
     _: *mut c_void,
 ) {
+    use std::str::FromStr;
+
     let json_str = unsafe { CStr::from_ptr(json_raw).to_str().unwrap() };
     let msg_type = AsstMsgCode::from_repr(code).unwrap_or_default();
-    match msg_type.level() {
+
+    let level = if matches!(msg_type, AsstMsgCode::ConnectionInfo) {
+        let info: ConnectionInfo = serde_json::from_str(json_str).unwrap();
+        ConnectionInfoType::from_str(&info.what)
+            .unwrap_or(ConnectionInfoType::Others)
+            .level()
+    } else {
+        msg_type.level()
+    };
+
+    match level {
         Level::Error => log::error!("[{}] {}", msg_type, json_str),
         Level::Warn => log::warn!("[{}] {}", msg_type, json_str),
         Level::Info => log::info!("[{}] {}", msg_type, json_str),
@@ -95,20 +107,19 @@ impl AsstMsgCode {
             | AsstMsgCode::TaskChainError
             | AsstMsgCode::SubTaskError => Level::Error,
 
-            AsstMsgCode::ConnectionInfo => Level::Warn,
+            AsstMsgCode::Destroyed => Level::Warn,
 
-            AsstMsgCode::Destroyed
-            | AsstMsgCode::TaskChainStart
+            AsstMsgCode::TaskChainStart
             | AsstMsgCode::TaskChainCompleted
             | AsstMsgCode::TaskChainStopped
             | AsstMsgCode::SubTaskStart
             | AsstMsgCode::SubTaskCompleted
             | AsstMsgCode::SubTaskStopped
-            | AsstMsgCode::SubTaskExtraInfo
             | AsstMsgCode::TaskChainExtraInfo
+            | AsstMsgCode::SubTaskExtraInfo
             | AsstMsgCode::AllTasksCompleted => Level::Info,
 
-            AsstMsgCode::AsyncCallInfo => Level::Debug,
+            AsstMsgCode::AsyncCallInfo | AsstMsgCode::ConnectionInfo => Level::Debug,
         }
     }
 }
@@ -123,6 +134,8 @@ pub enum ConnectionInfoType {
     UnsupportedResolution,
     /// 分辨率获取错误
     ResolutionError,
+    /// 分辨率获取成功
+    ResolutionGot,
     /// 连接断开（adb / 模拟器 炸了），正在重连
     Reconnecting,
     /// 连接断开（adb / 模拟器 炸了），重连成功
@@ -133,6 +146,8 @@ pub enum ConnectionInfoType {
     ScreencapFailed,
     /// 不支持的触控模式
     TouchModeNotAvailable,
+    /// 其他
+    Others,
 }
 
 impl ConnectionInfoType {
@@ -143,11 +158,23 @@ impl ConnectionInfoType {
             | ConnectionInfoType::ScreencapFailed
             | ConnectionInfoType::TouchModeNotAvailable => Level::Error,
 
+            ConnectionInfoType::Reconnecting => Level::Warn,
+
             ConnectionInfoType::Connected
-            | ConnectionInfoType::UuidGot
-            | ConnectionInfoType::Reconnecting
             | ConnectionInfoType::Reconnected
             | ConnectionInfoType::Disconnect => Level::Info,
+
+            ConnectionInfoType::ResolutionGot
+            | ConnectionInfoType::UuidGot
+            | ConnectionInfoType::Others => Level::Debug,
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConnectionInfo {
+    pub what: String,         // 信息类型
+    pub why: Option<String>,  // 信息原因
+    pub uuid: Option<String>, // 设备唯一码（连接失败时为空）
+    pub details: serde_json::Value,
 }
