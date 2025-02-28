@@ -51,7 +51,7 @@ pub enum ExtraTaskType {
     VideoRecognition,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 pub struct Parameters {
     pub enable: bool,
     #[serde(flatten)]
