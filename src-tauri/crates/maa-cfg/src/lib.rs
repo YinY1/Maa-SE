@@ -5,7 +5,7 @@
 pub mod task;
 
 use std::{
-    env::current_exe,
+    env::current_dir,
     fs::{self, create_dir_all},
     path::PathBuf,
     str::FromStr,
@@ -25,12 +25,13 @@ pub const SETTINGS_CFG: &str = "settings.json";
 pub const TOOL_STORAGE: &str = "tool-storage.json";
 pub const CUSTOMS_CFG: &str = "customs.json";
 pub const CUSTOMS_STORAGE: &str = "custom-storage.json";
+pub const VERSION_JSON: &str = "versions.json";
 
 /// 存放数据，而非gui配置本身
 #[derive(Debug, Display, EnumString)]
 pub enum Storage {
     /// 小工具识别结果，包括干员识别和仓库识别等
-    Tool,
+    Tool(String),
     /// 用户自定义任务名的数据存储
     Custom(String),
 }
@@ -71,32 +72,30 @@ pub struct Config {
 
 impl Config {
     pub fn load(cfg_group: Option<String>) -> anyhow::Result<Self> {
-        let path = current_exe()
-            .context("get exe path")?
-            .parent()
-            .unwrap()
+        let path = current_dir()
+            .context("cwd")?
             .join(CFG_DIR)
             .join(cfg_group.unwrap_or(DEFAULT_CFG_PATH.to_string()));
 
         if let Err(e) = create_dir_all(&path)
             && !matches!(e.kind(), std::io::ErrorKind::AlreadyExists)
         {
-            anyhow::bail!(e)
-        }
+            anyhow::bail!(e);
+        };
 
         Ok(Self {
             daily_task: load_json_obj(path.join(DAILY_CFG))
-                .with_context(|| format!("load {DAILY_CFG}"))?,
+                .with_context(|| constcat::concat!("load ", DAILY_CFG))?,
             tools: load_json_obj(path.join(TOOL_STORAGE))
-                .with_context(|| format!("load {TOOL_STORAGE}"))?,
+                .with_context(|| constcat::concat!("load ", TOOL_STORAGE))?,
             settings: load_json_obj(path.join(SETTINGS_CFG))
-                .with_context(|| format!("load {SETTINGS_CFG}"))?,
+                .with_context(|| constcat::concat!("load ", SETTINGS_CFG))?,
             custom_task: load_json_obj(path.join(CUSTOMS_CFG))
-                .with_context(|| format!("load {CUSTOMS_CFG}"))?,
+                .with_context(|| constcat::concat!("load ", CUSTOMS_CFG))?,
             custom_storage: load_json_obj(path.join(CUSTOMS_STORAGE))
-                .with_context(|| format!("load {CUSTOMS_CFG}"))?,
+                .with_context(|| constcat::concat!("load ", CUSTOMS_CFG))?,
             extra_task: load_json_obj(path.join(EXTRA_TASK_CFG))
-                .with_context(|| format!("load {EXTRA_TASK_CFG}"))?,
+                .with_context(|| constcat::concat!("load ", EXTRA_TASK_CFG))?,
             path,
         })
     }
@@ -130,10 +129,10 @@ impl Config {
                 Self::set_and_write_impl(&mut self.custom_task, path, t, params)
                     .context("write customs.json")
             }
-            ConfigType::Storage(Storage::Tool) => {
-                self.tools = serde_json::to_value(params)?;
+            ConfigType::Storage(Storage::Tool(t)) => {
                 let path = self.path.join(TOOL_STORAGE);
-                fs::write(path, self.tools.to_string()).context("write tool-storage.json")
+                Self::set_and_write_impl(&mut self.tools, path, t, params)
+                    .context("write customs.json")
             }
             ConfigType::Storage(Storage::Custom(t)) => {
                 let path = self.path.join(CUSTOMS_STORAGE);

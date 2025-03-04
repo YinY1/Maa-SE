@@ -14,6 +14,7 @@ log.workspace = true
 strum.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+constcat.workspace = true
 
 log4rs = { workspace = true, optional = true, features = [
     "rolling_file_appender",
