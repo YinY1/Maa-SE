@@ -1,5 +1,8 @@
 use std::{
-    env::current_exe,
+    env::{
+        consts::{DLL_PREFIX, DLL_SUFFIX},
+        current_exe,
+    },
     ffi::c_void,
     sync::atomic::{AtomicBool, Ordering},
     thread::sleep,
@@ -15,6 +18,8 @@ use crate::{ADB_PATH, DEFAULT_ADB_ADDRESS};
 
 static STOP_SIGN: AtomicBool = AtomicBool::new(false);
 
+const MAA_CORE: &str = constcat::concat!(DLL_PREFIX, "MaaCore", DLL_SUFFIX);
+
 /// run all tasks with given queue and callback
 pub fn run_core(
     tasks: TaskQueue,
@@ -22,7 +27,7 @@ pub fn run_core(
     arg: Option<*mut c_void>,
 ) -> anyhow::Result<()> {
     trace!("load MaaCore");
-    maa_sys::binding::load("MaaCore.dll")
+    maa_sys::binding::load(MAA_CORE)
         .map_err(|e| anyhow!(e))
         .context("load core")?;
 
@@ -39,6 +44,7 @@ pub fn run_core(
 
     trace!("append tasks");
 
+    // FIXME: 没有和ui的任务列表顺序匹配
     for (name, params) in tasks {
         let id = assistant
             .append_task(name.as_str(), params.as_str())

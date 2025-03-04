@@ -91,10 +91,11 @@ mod dynamic_log {
     }
 
     // TODO: 优化每次都要重新build一次
+    // FIXME: extern crate的trace信息会被打印出来, roller文件位置不对（到cwd了）
     pub fn log_config(handle: AppHandle, level: LevelFilter) -> anyhow::Result<Config> {
         let trigger = SizeTrigger::new(MAX_LOG_SIZE);
         let roller = FixedWindowRoller::builder()
-            .build(&format!("{LOG_FILE_PATH}.{{}}"), MAX_LOG_COUNT) // 保留最多10个备份文件（配合时间清理）
+            .build(constcat::concat!(LOG_FILE_PATH, ".{}"), MAX_LOG_COUNT) // 保留最多10个备份文件（配合时间清理）
             .unwrap();
         let appender = RollingFileAppender::builder()
             .build(

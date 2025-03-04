@@ -33,3 +33,4 @@ maa-core = { path = "../maa-core", features = [
     "dynamic-log-level",
 ] }
 maa-cfg = { path = "../maa-cfg" }
+maa-updater = { path = "../maa-updater" }

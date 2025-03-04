@@ -1,12 +1,27 @@
+use std::{ops::Deref, sync::Mutex};
+
 use anyhow::Context;
-use maa_cfg::Parameters;
-use maa_core::{
-    tauri_logger::{log_config, LogHandleState},
-    ConfigState,
-};
+use maa_cfg::{Config, Parameters};
+use maa_core::tauri_logger::{log_config, LogHandleState};
 use tauri::{async_runtime::spawn_blocking, AppHandle, State};
 
 use crate::CommandResult;
+
+pub struct ConfigState(Mutex<Config>);
+
+impl Deref for ConfigState {
+    type Target = Mutex<Config>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl ConfigState {
+    pub fn new(config: Config) -> Self {
+        Self(Mutex::new(config))
+    }
+}
 
 #[tauri::command]
 pub(crate) async fn run_daily(configs: State<'_, ConfigState>) -> CommandResult<()> {
@@ -43,7 +58,7 @@ pub(crate) fn update_config(
 
 #[tauri::command]
 pub(crate) fn get_config(configs: State<'_, ConfigState>) -> CommandResult<String> {
-    serde_json::to_string(configs.inner())
+    serde_json::to_string(configs.inner().lock().unwrap().deref())
         .context("serialize configs to string")
         .map_err(|e| format!("{e:?}"))
 }
