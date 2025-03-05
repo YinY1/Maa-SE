@@ -21,12 +21,12 @@ tauri-build = { workspace = true, features = [] }
 tauri = { workspace = true, features = [] }
 tauri-plugin-opener = { workspace = true, features = [] }
 serde_json.workspace = true
-
 maa-sys.workspace = true
 maa-types.workspace = true
 anyhow.workspace = true
 log.workspace = true
 log4rs.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 maa-core = { path = "../maa-core", features = [
     "tauri-handle",

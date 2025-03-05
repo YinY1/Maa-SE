@@ -24,7 +24,9 @@ impl Updater {
             .download_package(&prefix, ZIP_FILE_SUFFIX, details, temp_dir)
             .await
             .context("download zip")?;
-        decompress(file, dst).context("decompress")
+        decompress(file, dst.to_path_buf())
+            .await
+            .context("decompress")
     }
 
     // TODO: 使用git增量更新资源？

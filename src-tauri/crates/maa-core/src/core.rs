@@ -4,7 +4,10 @@ use std::{
         current_exe,
     },
     ffi::c_void,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
     thread::sleep,
     time::Duration,
 };
@@ -19,6 +22,7 @@ use crate::{ADB_PATH, DEFAULT_ADB_ADDRESS};
 static STOP_SIGN: AtomicBool = AtomicBool::new(false);
 
 const MAA_CORE: &str = constcat::concat!(DLL_PREFIX, "MaaCore", DLL_SUFFIX);
+static LOAD_CORE: OnceLock<()> = OnceLock::new();
 
 /// run all tasks with given queue and callback
 pub fn run_core(
@@ -26,10 +30,14 @@ pub fn run_core(
     callback: maa_sys::binding::AsstApiCallback,
     arg: Option<*mut c_void>,
 ) -> anyhow::Result<()> {
-    trace!("load MaaCore");
-    maa_sys::binding::load(MAA_CORE)
-        .map_err(|e| anyhow!(e))
-        .context("load core")?;
+    LOAD_CORE
+        .get_or_try_init(|| {
+            trace!("load MaaCore");
+            maa_sys::binding::load(MAA_CORE)
+                .map_err(|e| anyhow!(e))
+                .context("load core")
+        })
+        .context("once load core")?;
 
     trace!("load resource");
     let exe_path = current_exe().context("get exe path")?;
@@ -60,6 +68,15 @@ pub fn run_core(
     STOP_SIGN.store(false, Ordering::Release);
     trace!("stop asst");
     assistant.stop().context("stop")
+}
+
+pub fn reload_core() -> anyhow::Result<()> {
+    trace!("unload MaaCore");
+    maa_sys::binding::unload();
+    trace!("load MaaCore");
+    maa_sys::binding::load(MAA_CORE)
+        .map_err(|e| anyhow!(e))
+        .context("load core")
 }
 
 #[cfg(feature = "tauri-handle")]

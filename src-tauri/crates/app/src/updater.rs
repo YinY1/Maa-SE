@@ -2,6 +2,7 @@ use std::{env::current_dir, ops::Deref, sync::RwLock};
 
 use anyhow::Context;
 use log::info;
+use maa_core::reload_core;
 use maa_updater::{
     updater::{UpdateResult, Updater},
     version::{ClientVersionRequest, Versions},
@@ -37,11 +38,12 @@ pub(crate) async fn update(
     match updater.update(ver, target_type, &dst).await {
         Ok(res) => {
             info!("{}", res);
-            if let UpdateResult::Success(v) = res {
+            if let UpdateResult::ClientSuccess(v) = res {
                 let mut guard = versions.write().unwrap();
                 guard.client = v;
                 guard.client.write().map_err(|e| format!("{e:?}"))?;
                 guard.resource.reload().map_err(|e| format!("{e:?}"))?;
+                reload_core().map_err(|e| format!("reload core err: {e:?}"))?;
             }
             Ok(())
         }
@@ -49,4 +51,21 @@ pub(crate) async fn update(
     }
 }
 
-// TODO: resource
+#[tauri::command]
+pub(crate) async fn update_resource(
+    updater: State<'_, Updater>,
+    versions: State<'_, VersionState>,
+) -> CommandResult<()> {
+    let dst = current_dir().context("cwd").map_err(|e| format!("{e:?}"))?;
+    let ver = versions.read().unwrap().resource.clone();
+    match updater.update_resource(ver, &dst).await {
+        Ok(res) => {
+            info!("{}", res);
+            if let UpdateResult::ResourceSuccess(v) = res {
+                versions.write().unwrap().resource = v;
+            }
+            Ok(())
+        }
+        Err(e) => Err(format!("update error: {e:?}")),
+    }
+}
