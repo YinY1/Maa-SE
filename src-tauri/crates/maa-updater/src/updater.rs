@@ -1,23 +1,21 @@
 use std::{
-    path::Path,
+    path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
 };
 
 use anyhow::Context;
+use fs_extra::dir::{CopyOptions, move_dir};
 use log::{debug, trace, warn};
 use reqwest::header::ACCEPT;
 use semver::Version;
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
 use strum::Display;
 use tempfile::{TempDir, tempdir};
-use tokio::{
-    fs::{File, rename},
-    io::AsyncWriteExt,
-};
+use tokio::{fs::File, io::AsyncWriteExt, join, task::spawn_blocking};
 
 use crate::{
-    GITHUB_RESOURCE_URL, VERSION_SUMMARY, ZIP_FILE_SUFFIX, decompress,
-    version::{ClientVersion, ClientVersionRequest},
+    GITHUB_RESOURCE_URL, RESOURCE_SUMMARY, VERSION_SUMMARY, ZIP_FILE_SUFFIX, decompress,
+    version::{ClientVersion, ClientVersionRequest, ResourceVersion},
 };
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0";
@@ -65,7 +63,16 @@ pub struct Asset {
 pub enum UpdateResult {
     Updating,
     AlreadyUpdated,
-    Success(ClientVersion),
+    ClientSuccess(ClientVersion),
+    ResourceSuccess(ResourceVersion), // TODO: box代替避免过大
+}
+
+pub struct UpdaterGuard<'a>(&'a AtomicBool);
+
+impl Drop for UpdaterGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
 }
 
 pub struct Updater {
@@ -90,6 +97,24 @@ impl Updater {
         }
     }
 
+    pub fn lock(&self) -> Result<UpdaterGuard<'_>, bool> {
+        self.updating
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map(|_| UpdaterGuard(&self.updating))
+    }
+
+    pub async fn get_object<T: DeserializeOwned>(&self, url: &str) -> anyhow::Result<T> {
+        self.client
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()
+            .context("get response")?
+            .json()
+            .await
+            .context("serde json")
+    }
+
     /// download update files to `dst` if `current_version` is not latest
     pub async fn update(
         &self,
@@ -97,16 +122,23 @@ impl Updater {
         target_type: ClientVersionRequest,
         dst: &Path,
     ) -> anyhow::Result<UpdateResult> {
-        if self
-            .updating
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-            .is_err()
-        {
-            return Ok(UpdateResult::Updating);
-        }
-        let res = self.update_impl(current_version, target_type, dst).await;
-        self.updating.store(false, Ordering::Release);
-        res
+        let _guard = match self.lock() {
+            Ok(g) => g,
+            Err(_) => return Ok(UpdateResult::Updating),
+        };
+        self.update_impl(current_version, target_type, dst).await
+    }
+
+    pub async fn update_resource(
+        &self,
+        current_version: ResourceVersion,
+        dst: &Path,
+    ) -> anyhow::Result<UpdateResult> {
+        let _guard = match self.lock() {
+            Ok(g) => g,
+            Err(_) => return Ok(UpdateResult::Updating),
+        };
+        self.update_resource_impl(current_version, dst).await
     }
 
     async fn update_impl(
@@ -133,7 +165,7 @@ impl Updater {
                 .context("download ota")
             {
                 Ok(_) => {
-                    return Ok(UpdateResult::Success(
+                    return Ok(UpdateResult::ClientSuccess(
                         target_type.to_version(details.version),
                     ));
                 }
@@ -150,7 +182,7 @@ impl Updater {
             .await
             .context("download full pkg")
         {
-            Ok(_) => Ok(UpdateResult::Success(
+            Ok(_) => Ok(UpdateResult::ClientSuccess(
                 target_type.to_version(details.version),
             )),
             Err(e) => {
@@ -161,7 +193,35 @@ impl Updater {
         }
     }
 
-    /// check from maa api, return Ok(Some(Details)) if needs update
+    async fn update_resource_impl(
+        &self,
+        current_version: ResourceVersion,
+        dst: &Path,
+    ) -> anyhow::Result<UpdateResult> {
+        let version = match self
+            .check_resource_update(&current_version)
+            .await
+            .context("check resource update")?
+        {
+            Some(v) => v,
+            None => return Ok(UpdateResult::AlreadyUpdated),
+        };
+
+        match self
+            .download_full_resource(dst)
+            .await
+            .context("download resource")
+        {
+            Ok(_) => Ok(UpdateResult::ResourceSuccess(version)),
+            Err(e) => {
+                warn!("resource update failed: {}", e.root_cause());
+                debug!("resource update trace: {e:?}");
+                Err(e)
+            }
+        }
+    }
+
+    /// check from maa api, return Ok(Some(Details)) if needs updating
     pub async fn check_core_update_and_get_details(
         &self,
         current_version: &ClientVersion,
@@ -169,15 +229,9 @@ impl Updater {
     ) -> anyhow::Result<Option<Details>> {
         trace!("get version summary from maa api");
         let info: VersionInfo = self
-            .client
-            .get(VERSION_SUMMARY)
-            .send()
-            .await?
-            .error_for_status()
-            .context("get summary.json")?
-            .json()
+            .get_object(VERSION_SUMMARY)
             .await
-            .context("serde json")?;
+            .context("get version info")?;
 
         let summary = match target_type {
             ClientVersionRequest::Nightly => info.alpha,
@@ -185,35 +239,52 @@ impl Updater {
             ClientVersionRequest::Stable => info.stable,
         };
 
-        let target_ver = Version::parse(summary.version.trim_start_matches('v'))
-            .context("parse target version")?;
         let details_url = match current_version {
-            ClientVersion::Nightly(v) | ClientVersion::Beta(v) | ClientVersion::Stable(v) => {
-                let cur_ver =
-                    Version::parse(v.trim_start_matches('v')).context("parse current version")?;
+            ClientVersion::Unknown => summary.detail_url,
+            _ => {
+                let cur_ver = current_version.semver().context("parse current version")?;
+                let target_ver = Version::parse(summary.version.trim_start_matches('v'))
+                    .context("parse target version")?;
                 if cur_ver >= target_ver {
                     return Ok(None);
                 }
                 summary.detail_url
             }
-            ClientVersion::Unknown => summary.detail_url,
         };
 
         trace!("get version details from maa api");
-        let details = self
-            .client
-            .get(details_url)
-            .send()
-            .await?
-            .error_for_status()
-            .context("get details.json")?
-            .json()
-            .await
-            .context("serde details.json")?;
+        let details = self.get_object(&details_url).await.context("get details")?;
 
         Ok(Some(details))
     }
 
+    /// check from maa api, return Ok(Some(resource info)) if needs updating
+    pub async fn check_resource_update(
+        &self,
+        current_version: &ResourceVersion,
+    ) -> anyhow::Result<Option<ResourceVersion>> {
+        trace!("get resource version from maa api");
+        let latest_version: ResourceVersion = self
+            .get_object(RESOURCE_SUMMARY)
+            .await
+            .context("get summary")?;
+
+        if current_version.last_updated == latest_version.last_updated {
+            return Ok(None);
+        }
+        let current = current_version
+            .timestamp()
+            .context("parse current timestamp")?;
+        let latest = latest_version
+            .timestamp()
+            .context("parse latest timestamp")?;
+
+        Ok((current < latest).then_some(latest_version))
+    }
+}
+
+/// download
+impl Updater {
     pub async fn download_full_package(&self, details: &Details, dst: &Path) -> anyhow::Result<()> {
         // TODO: 使用tempdir in 避免意外关闭时没删除临时目录，可以后期手动删除
         let temp_dir = tempdir().context("create temp dir")?;
@@ -222,7 +293,9 @@ impl Updater {
             .await
             .context("download zip")?;
 
-        decompress(file, dst).context("decompress")
+        decompress(file, dst.to_path_buf())
+            .await
+            .context("decompress")
     }
 
     pub async fn download_full_resource(&self, dst: &Path) -> anyhow::Result<()> {
@@ -234,14 +307,18 @@ impl Updater {
             .await
             .context("download zip")?;
 
-        decompress(file, temp_path).context("decompress")?;
+        decompress(file, temp_path.to_path_buf())
+            .await
+            .context("decompress")?;
+
         let resources_path = temp_path.join(RESOURCE_REPO_NAME);
-        rename(resources_path.join("cache"), dst)
-            .await
-            .context("move cache")?;
-        rename(resources_path.join("resource"), dst)
-            .await
-            .context("move resource")
+        let (s1, s2) = join!(
+            move_dir_async(resources_path.join("cache"), dst.to_path_buf()),
+            move_dir_async(resources_path.join("resource"), dst.to_path_buf())
+        );
+        s1.context("movwe cache")?;
+        s2.context("move resource")?;
+        Ok(())
     }
 
     /// download package with given format,
@@ -285,6 +362,7 @@ impl Updater {
             .await
             .context("create target file")?;
         while let Some(chunk) = resp.chunk().await? {
+            // TODO: 添加下载进度回报
             file.write_all(&chunk).await?;
         }
         trace!("download finish");
@@ -292,4 +370,15 @@ impl Updater {
 
         Ok(file.into_std().await)
     }
+}
+
+async fn move_dir_async(from: PathBuf, to: PathBuf) -> anyhow::Result<u64> {
+    trace!("move dir from `{from:?}` to `{to:?}`");
+    spawn_blocking(move || {
+        let options = CopyOptions::new().overwrite(true);
+        move_dir(from, to, &options)
+    })
+    .await
+    .context("spawn blocking handle")?
+    .context("move dir")
 }

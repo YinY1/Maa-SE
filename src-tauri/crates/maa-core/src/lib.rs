@@ -1,4 +1,5 @@
 #![deny(warnings)]
+#![feature(once_cell_try)]
 
 pub mod callback;
 pub mod core;

@@ -3,7 +3,7 @@
 mod core;
 mod updater;
 
-use core::{get_config, run_daily, set_log_level, stop_core, update_config, ConfigState};
+use core::{get_config, run_daily, set_log_level, stop_core, update_config};
 use std::env::set_current_dir;
 
 use anyhow::Context;
@@ -12,20 +12,20 @@ use maa_cfg::Config;
 use maa_core::tauri_logger::{log_config, LogHandleState};
 use maa_updater::{updater::Updater, version::Versions};
 use tauri::{utils::platform::current_exe, AppHandle, Manager};
-use updater::{update, VersionState};
+use updater::{update, update_resource, VersionState};
 
 pub(crate) type CommandResult<T> = Result<T, String>;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() -> anyhow::Result<()> {
+pub async fn run() -> anyhow::Result<()> {
     init_cwd()?;
     // init states
-    let config_state = Config::load(None).context("load configs")?;
+    let config_state = Config::load(None).await.context("load configs")?;
     let version_state = Versions::load().context("load versions")?;
     // build app
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(ConfigState::new(config_state)) // TODO: 有没有必要不用mutex
+        .manage(config_state)
         .manage(LogHandleState::default())
         .manage(Updater::default())
         .manage(VersionState::new(version_state))
@@ -41,6 +41,7 @@ pub fn run() -> anyhow::Result<()> {
             get_config,
             set_log_level,
             update,
+            update_resource
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

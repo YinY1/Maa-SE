@@ -1,10 +1,13 @@
 use std::{env::current_dir, fs};
 
 use anyhow::{Context, bail};
+use chrono::NaiveDateTime;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 
 pub const CLIENT_VERSION_JSON: &str = "client_version.json";
 pub const RESOURCE_VERSION_JSON: &str = "version.json";
+pub const RESOURCE_TIMESTAMP_FORMAT: &str = "%Y-%m-%d %H:%M:%S%.3f";
 
 #[derive(Deserialize)]
 #[serde(rename_all(deserialize = "lowercase"))]
@@ -44,6 +47,13 @@ impl ClientVersion {
             ClientVersion::Unknown => None,
         }
     }
+
+    pub fn semver(&self) -> anyhow::Result<Version> {
+        match self.version() {
+            Some(v) => Version::parse(v.trim_start_matches('v')).context("parser semver"),
+            None => bail!("unknown version"),
+        }
+    }
 }
 
 impl ClientVersion {
@@ -65,23 +75,23 @@ impl ClientVersion {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Activity {
     name: String,
     time: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Gacha {
     pool: String,
     time: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ResourceVersion {
     activity: Activity,
     gacha: Gacha,
-    last_updated: String,
+    pub last_updated: String,
 }
 
 impl ResourceVersion {
@@ -108,6 +118,11 @@ impl ResourceVersion {
 
     pub fn exists(&self) -> bool {
         !self.last_updated.is_empty()
+    }
+
+    pub fn timestamp(&self) -> anyhow::Result<NaiveDateTime> {
+        NaiveDateTime::parse_from_str(&self.last_updated, RESOURCE_TIMESTAMP_FORMAT)
+            .context("parse last_updated")
     }
 }
 
@@ -168,16 +183,33 @@ mod tests {
             nightly
         );
         assert_eq!(
-            serde_json::from_str::<ClientVersion>("{\"Beta\":\"v5.14.0-beta.3\"}",).unwrap(),
+            serde_json::from_str::<ClientVersion>("{\"Beta\":\"v5.14.0-beta.3\"}").unwrap(),
             beta
         );
         assert_eq!(
-            serde_json::from_str::<ClientVersion>("{\"Stable\":\"v5.13.1\"}",).unwrap(),
+            serde_json::from_str::<ClientVersion>("{\"Stable\":\"v5.13.1\"}").unwrap(),
             stable
         );
         assert_eq!(
-            serde_json::from_str::<ClientVersion>("\"Unknown\"",).unwrap(),
+            serde_json::from_str::<ClientVersion>("\"Unknown\"").unwrap(),
             ClientVersion::Unknown
         );
+    }
+
+    #[test]
+    fn semver() {
+        let nightly1 = ClientVersion::Nightly("v5.14.0-beta.3.d026.ga1d49556d".to_string());
+        let nightly2 = ClientVersion::Nightly("v5.14.0-beta.3.d030.g82b63a0c3".to_string());
+        let beta = ClientVersion::Beta("v5.14.0-beta.3".to_string());
+        let stable = ClientVersion::Stable("v5.13.1".to_string());
+
+        let nightly1 = nightly1.semver().unwrap();
+        let nightly2 = nightly2.semver().unwrap();
+        let beta = beta.semver().unwrap();
+        let stable = stable.semver().unwrap();
+
+        assert!(nightly1 < nightly2);
+        assert!(nightly1 > beta);
+        assert!(beta > stable);
     }
 }

@@ -25,6 +25,9 @@ zip = "2"
 flate2 = "1"
 tar = "0.4"
 semver = "1"
+chrono = "0.4"
+fs_extra = "1"
+dashmap = "6"
 
 [workspace.dependencies.maa-types]
 git = "https://github.com/MaaAssistantArknights/maa-cli"
