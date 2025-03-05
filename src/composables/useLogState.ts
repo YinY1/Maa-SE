@@ -22,10 +22,19 @@ function clearLogs() {
   logs.value = []
 }
 
+// 调试用
+function addLog(message: string, type: 'info' | 'warning' | 'error' = 'info') {
+  logs.value.push({
+    message,
+    type,
+  })
+}
+
 export const useLogState = () => {
   return {
     logs,
     clearLogs,
     setupLogListener,
+    addLog,
   }
 }

@@ -186,7 +186,9 @@ async function updateTaskConfig(enable: boolean): Promise<void> {
       ...baseParams,
       ...taskParams,
     }
-
+    const { addLog } = useLogState()
+    addLog(`更新任务配置: ${taskType}`)
+    addLog(`任务参数: ${JSON.stringify(params, null, 2)}`)
     console.log('name:', taskType)
     console.log('params:', params)
 
