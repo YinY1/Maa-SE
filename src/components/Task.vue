@@ -31,35 +31,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-
 import { useTaskState } from '../composables/useTaskState'
 
-const { currentTask, updateTaskConfig } = useTaskState()
-
-interface TaskItem {
-  name: string
-  checked: boolean
-}
-
-const navigation = ref<TaskItem[]>([
-  { name: '开始唤醒', checked: false },
-  { name: '自动公招', checked: false },
-  { name: '基建换班', checked: false },
-  { name: '获取信用', checked: false },
-  { name: '刷理智', checked: false },
-  { name: '领取奖励', checked: false },
-  { name: '集成战略', checked: false },
-  { name: '生息演算', checked: false },
-])
+const { navigation, currentTask, updateTaskConfig } = useTaskState()
 
 const selectTask = (taskName: string) => {
   currentTask.value = taskName
 }
 
-const handleTaskToggle = async (item: TaskItem) => {
+const handleTaskToggle = async (item: { name: string; checked: boolean }) => {
   try {
+    const previousTask = currentTask.value
+    currentTask.value = item.name
     await updateTaskConfig(item.checked)
+    currentTask.value = previousTask
   } catch (error) {
     item.checked = !item.checked
     console.error('切换任务状态失败:', error)
