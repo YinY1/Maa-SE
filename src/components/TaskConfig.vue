@@ -24,7 +24,6 @@
             :key="index"
             class="mb-6 last:mb-0"
           >
-            <!-- 仅对非checkbox类型显示标题label -->
             <label
               v-if="config.type !== 'checkbox'"
               class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -36,11 +35,13 @@
                 v-if="config.type === 'text'"
                 type="text"
                 v-model="config.value"
+                @blur="handleConfigChange"
                 class="block w-full rounded-md border-gray-300 shadow-sm transition-colors duration-200 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               />
               <select
                 v-if="config.type === 'select'"
                 v-model="config.value"
+                @change="handleConfigChange"
                 class="block w-full rounded-md border-gray-300 shadow-sm transition-colors duration-200 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               >
                 <option
@@ -48,7 +49,7 @@
                   :key="option"
                   :value="option"
                 >
-                  {{ option }}
+                  {{ config.displayMap ? config.displayMap[option] : option }}
                 </option>
               </select>
               <div
@@ -59,6 +60,7 @@
                   type="checkbox"
                   :id="config.label"
                   v-model="config.value"
+                  @change="handleConfigChange"
                   class="h-4 w-4 rounded border-gray-300 text-indigo-600 transition-colors duration-200 focus:ring-indigo-600 dark:border-gray-600"
                 />
                 <label
@@ -67,22 +69,6 @@
                 >
                   {{ config.label }}
                 </label>
-              </div>
-              <div
-                v-if="config.type === 'checkbox-number'"
-                class="flex items-center gap-3"
-              >
-                <input
-                  type="checkbox"
-                  v-model="config.value.enabled"
-                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 transition-colors duration-200 focus:ring-indigo-600 dark:border-gray-600"
-                />
-                <input
-                  type="number"
-                  v-model="config.value.count"
-                  min="0"
-                  class="block w-20 rounded-md border-gray-300 shadow-sm transition-colors duration-200 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                />
               </div>
               <div v-if="config.type === 'multiSelect'" class="space-y-2">
                 <div
@@ -95,12 +81,12 @@
                     :id="option"
                     :value="option"
                     v-model="selectedValues"
-                    class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
                     @change="updateValue"
+                    class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
                   />
-                  <label :for="option" class="ml-2 text-sm text-gray-600">{{
-                    option
-                  }}</label>
+                  <label :for="option" class="ml-2 text-sm text-gray-600">
+                    {{ config.displayMap ? config.displayMap[option] : option }}
+                  </label>
                 </div>
               </div>
             </div>
@@ -119,12 +105,16 @@ import { computed, ref, watch } from 'vue'
 
 import { useTaskState } from '../composables/useTaskState'
 
-const { currentTask, taskConfigs, isRunning, toggleTask, updateTaskConfig } =
-  useTaskState()
+const {
+  currentTask,
+  taskConfigs,
+  isRunning,
+  toggleTask,
+  updateTaskConfig,
+  navigation,
+} = useTaskState()
 
-const currentConfigs = computed(() => {
-  return taskConfigs[currentTask.value]
-})
+const currentConfigs = computed(() => taskConfigs[currentTask.value])
 
 const selectedValues = ref([])
 
@@ -135,19 +125,22 @@ const updateValue = () => {
         config.value = selectedValues.value
       }
     })
+    handleConfigChange()
   }
 }
 
-// 监听配置变化
-watch(
-  currentConfigs,
-  async (newConfigs) => {
-    if (newConfigs) {
-      await updateTaskConfig(true)
+const handleConfigChange = async () => {
+  const taskItem = navigation.value.find(
+    (item) => item.name === currentTask.value,
+  )
+  if (taskItem) {
+    try {
+      await updateTaskConfig(taskItem.checked)
+    } catch (error) {
+      console.error('更新任务配置失败:', error)
     }
-  },
-  { deep: true },
-)
+  }
+}
 
 watch(
   () => currentConfigs.value.map((config) => config.value),

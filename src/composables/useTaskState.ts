@@ -4,16 +4,22 @@ import { ref } from 'vue'
 
 import { useLogState } from './useLogState'
 
+interface TaskItem {
+  name: string
+  checked: boolean
+}
+
 interface TaskConfig {
   label: string
   type: 'text' | 'select' | 'multiSelect' | 'checkbox'
   value: string | boolean | string[]
   options?: string[]
+  displayMap?: Record<string, string>
 }
 
 interface StartUpParams {
   client_type: string
-  // start_game_enabled: boolean
+  start_game_enabled: boolean
 }
 
 interface FightParams {
@@ -32,13 +38,32 @@ interface InfrastParams {
   dorm_trust_enabled?: boolean
 }
 
+interface AwardParams {
+  enable?: boolean
+  award?: boolean
+  mail?: boolean
+  recruit?: boolean
+}
+
 const currentTask = ref<string>('开始唤醒')
 const isRunning = ref<boolean>(false)
+
+const navigation = ref<TaskItem[]>([
+  { name: '开始唤醒', checked: false },
+  { name: '自动公招', checked: false },
+  { name: '基建换班', checked: false },
+  { name: '获取信用', checked: false },
+  { name: '刷理智', checked: false },
+  { name: '领取奖励', checked: false },
+  { name: '集成战略', checked: false },
+  { name: '生息演算', checked: false },
+])
 
 const taskTypeMap: Record<string, string> = {
   开始唤醒: 'StartUp',
   刷理智: 'Fight',
   基建换班: 'Infrast',
+  领取奖励: 'Award',
 }
 
 const taskConfigs: Record<string, TaskConfig[]> = {
@@ -49,17 +74,18 @@ const taskConfigs: Record<string, TaskConfig[]> = {
       value: '官服',
       options: ['官服', 'B服'],
     },
-    // {
-    //   label: '自动启动客户端',
-    //   type: 'checkbox',
-    //   value: false,
-    // },
+    {
+      label: '自动启动客户端',
+      type: 'checkbox',
+      value: false,
+    },
   ],
   刷理智: [
     {
       label: '关卡名称',
-      type: 'text',
-      value: '',
+      type: 'select',
+      value: '1-7',
+      options: ['1-7'],
     },
     {
       label: '连续作战次数',
@@ -72,7 +98,15 @@ const taskConfigs: Record<string, TaskConfig[]> = {
     {
       label: '设施列表',
       type: 'multiSelect',
-      value: ['Mfg'],
+      value: [
+        'Mfg',
+        'Trade',
+        'Power',
+        'Control',
+        'Reception',
+        'Office',
+        'Dorm',
+      ],
       options: [
         'Mfg',
         'Trade',
@@ -82,6 +116,15 @@ const taskConfigs: Record<string, TaskConfig[]> = {
         'Office',
         'Dorm',
       ],
+      displayMap: {
+        Mfg: '制造站',
+        Trade: '贸易站',
+        Power: '发电站',
+        Control: '控制中枢',
+        Reception: '会客室',
+        Office: '办公室',
+        Dorm: '宿舍',
+      },
     },
     {
       label: '无人机用途',
@@ -96,6 +139,15 @@ const taskConfigs: Record<string, TaskConfig[]> = {
         'OriginStone',
         'Chip',
       ],
+      displayMap: {
+        _NotUse: '不使用',
+        Money: '龙门币',
+        SyntheticJade: '合成玉',
+        CombatRecord: '作战记录',
+        PureGold: '赤金',
+        OriginStone: '源石',
+        Chip: '芯片',
+      },
     },
     {
       label: '心情阈值',
@@ -118,6 +170,24 @@ const taskConfigs: Record<string, TaskConfig[]> = {
       value: false,
     },
   ],
+
+  领取奖励: [
+    {
+      label: '领取任务奖励',
+      type: 'checkbox',
+      value: true,
+    },
+    {
+      label: '领取邮件奖励',
+      type: 'checkbox',
+      value: false,
+    },
+    {
+      label: '使用免费单抽',
+      type: 'checkbox',
+      value: false,
+    },
+  ],
 }
 
 function convertStartUpConfig(configs: TaskConfig[]): StartUpParams {
@@ -125,15 +195,14 @@ function convertStartUpConfig(configs: TaskConfig[]): StartUpParams {
     官服: 'Official',
     B服: 'Bilibili',
   }
-
   return {
     client_type:
       clientTypeMap[
         configs.find((c) => c.label === '客户端版本')?.value as string
       ] || '',
-    // start_game_enabled:
-    //   (configs.find((c) => c.label === '自动启动客户端')?.value as boolean) ||
-    //   false,
+    start_game_enabled:
+      (configs.find((c) => c.label === '自动启动客户端')?.value as boolean) ||
+      false,
   }
 }
 
@@ -165,6 +234,20 @@ function convertInfrastConfig(configs: TaskConfig[]): InfrastParams {
   }
 }
 
+function convertAwardConfig(configs: TaskConfig[]): AwardParams {
+  return {
+    award:
+      (configs.find((c) => c.label === '领取任务奖励')?.value as boolean) ??
+      true,
+    mail:
+      (configs.find((c) => c.label === '领取邮件奖励')?.value as boolean) ??
+      false,
+    recruit:
+      (configs.find((c) => c.label === '使用免费单抽')?.value as boolean) ??
+      false,
+  }
+}
+
 async function updateTaskConfig(enable: boolean): Promise<void> {
   const taskType = taskTypeMap[currentTask.value]
   if (!taskType) return
@@ -173,13 +256,14 @@ async function updateTaskConfig(enable: boolean): Promise<void> {
     let baseParams = { enable }
     let taskParams = {}
 
-    // 根据任务类型添加特定参数
     if (taskType === 'StartUp') {
       taskParams = convertStartUpConfig(taskConfigs[currentTask.value])
     } else if (taskType === 'Fight') {
       taskParams = convertFightConfig(taskConfigs[currentTask.value])
     } else if (taskType === 'Infrast') {
       taskParams = convertInfrastConfig(taskConfigs[currentTask.value])
+    } else if (taskType === 'Award') {
+      taskParams = convertAwardConfig(taskConfigs[currentTask.value])
     }
 
     const params = {
@@ -190,10 +274,7 @@ async function updateTaskConfig(enable: boolean): Promise<void> {
     console.log('name:', taskType)
     console.log('params:', params)
 
-    await invoke('update_config', {
-      name: taskType,
-      params: params,
-    })
+    await invoke('update_config', { name: taskType, params })
   } catch (error) {
     console.error('更新任务配置失败:', error)
     throw error
@@ -230,5 +311,6 @@ export const useTaskState = () => {
     isRunning,
     toggleTask,
     updateTaskConfig,
+    navigation,
   }
 }
