@@ -33,7 +33,7 @@
 <script setup lang="ts">
 import { useTaskState } from '../composables/useTaskState'
 
-const { navigation, currentTask, updateTaskConfig } = useTaskState()
+const { currentTask, navigation, updateTaskEnable } = useTaskState()
 
 const selectTask = (taskName: string) => {
   currentTask.value = taskName
@@ -41,10 +41,8 @@ const selectTask = (taskName: string) => {
 
 const handleTaskToggle = async (item: { name: string; checked: boolean }) => {
   try {
-    const previousTask = currentTask.value
-    currentTask.value = item.name
-    await updateTaskConfig(item.checked)
-    currentTask.value = previousTask
+    // 不改变当前显示的任务
+    await updateTaskEnable(item.name, item.checked)
   } catch (error) {
     item.checked = !item.checked
     console.error('切换任务状态失败:', error)

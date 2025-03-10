@@ -2,8 +2,6 @@ import { invoke } from '@tauri-apps/api/core'
 
 import { ref } from 'vue'
 
-import { useLogState } from './useLogState'
-
 interface TaskItem {
   name: string
   checked: boolean
@@ -45,6 +43,14 @@ interface AwardParams {
   recruit?: boolean
 }
 
+// 添加获取信用的参数接口
+interface MallParams {
+  enable?: boolean
+  shopping?: boolean
+  buy_first?: string[]
+  blacklist?: string[]
+}
+
 const currentTask = ref<string>('开始唤醒')
 const isRunning = ref<boolean>(false)
 
@@ -64,8 +70,10 @@ const taskTypeMap: Record<string, string> = {
   刷理智: 'Fight',
   基建换班: 'Infrast',
   领取奖励: 'Award',
+  获取信用: 'Mall',
 }
 
+// 在 taskConfigs 中添加获取信用的配置
 const taskConfigs: Record<string, TaskConfig[]> = {
   开始唤醒: [
     {
@@ -188,6 +196,23 @@ const taskConfigs: Record<string, TaskConfig[]> = {
       value: false,
     },
   ],
+  获取信用: [
+    {
+      label: '购买商品',
+      type: 'checkbox',
+      value: false,
+    },
+    {
+      label: '优先购买',
+      type: 'text',
+      value: '',
+    },
+    {
+      label: '黑名单',
+      type: 'text',
+      value: '',
+    },
+  ],
 }
 
 function convertStartUpConfig(configs: TaskConfig[]): StartUpParams {
@@ -248,6 +273,26 @@ function convertAwardConfig(configs: TaskConfig[]): AwardParams {
   }
 }
 
+function convertMallConfig(configs: TaskConfig[]): MallParams {
+  return {
+    shopping:
+      (configs.find((c) => c.label === '购买商品')?.value as boolean) ?? false,
+    buy_first: (
+      (configs.find((c) => c.label === '优先购买')?.value as string) || ''
+    )
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+    blacklist: (
+      (configs.find((c) => c.label === '黑名单')?.value as string) || ''
+    )
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  }
+}
+
+// 在 updateTaskConfig 函数中添加获取信用的处理
 async function updateTaskConfig(enable: boolean): Promise<void> {
   const taskType = taskTypeMap[currentTask.value]
   if (!taskType) return
@@ -256,6 +301,7 @@ async function updateTaskConfig(enable: boolean): Promise<void> {
     let baseParams = { enable }
     let taskParams = {}
 
+    // 根据任务类型添加特定参数
     if (taskType === 'StartUp') {
       taskParams = convertStartUpConfig(taskConfigs[currentTask.value])
     } else if (taskType === 'Fight') {
@@ -264,6 +310,8 @@ async function updateTaskConfig(enable: boolean): Promise<void> {
       taskParams = convertInfrastConfig(taskConfigs[currentTask.value])
     } else if (taskType === 'Award') {
       taskParams = convertAwardConfig(taskConfigs[currentTask.value])
+    } else if (taskType === 'Mall') {
+      taskParams = convertMallConfig(taskConfigs[currentTask.value])
     }
 
     const params = {
@@ -304,6 +352,21 @@ async function toggleTask(): Promise<void> {
   }
 }
 
+async function updateTaskEnable(
+  taskName: string,
+  enable: boolean,
+): Promise<void> {
+  const taskType = taskTypeMap[taskName]
+  if (!taskType) return
+
+  try {
+    await invoke('update_config', { name: taskType, params: { enable } })
+  } catch (error) {
+    console.error('更新任务启用状态失败:', error)
+    throw error
+  }
+}
+
 export const useTaskState = () => {
   return {
     currentTask,
@@ -311,6 +374,7 @@ export const useTaskState = () => {
     isRunning,
     toggleTask,
     updateTaskConfig,
+    updateTaskEnable,
     navigation,
   }
 }
