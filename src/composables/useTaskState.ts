@@ -43,7 +43,6 @@ interface AwardParams {
   recruit?: boolean
 }
 
-// 添加获取信用的参数接口
 interface MallParams {
   enable?: boolean
   shopping?: boolean
@@ -73,7 +72,6 @@ const taskTypeMap: Record<string, string> = {
   获取信用: 'Mall',
 }
 
-// 在 taskConfigs 中添加获取信用的配置
 const taskConfigs: Record<string, TaskConfig[]> = {
   开始唤醒: [
     {
@@ -292,13 +290,15 @@ function convertMallConfig(configs: TaskConfig[]): MallParams {
   }
 }
 
-// 在 updateTaskConfig 函数中添加获取信用的处理
 async function updateTaskConfig(enable: boolean): Promise<void> {
   const taskType = taskTypeMap[currentTask.value]
   if (!taskType) return
 
   try {
-    let baseParams = { enable }
+    const taskIndex = navigation.value.findIndex(
+      (item) => item.name === currentTask.value,
+    )
+    let baseParams = { enable, index: taskIndex }
     let taskParams = {}
 
     // 根据任务类型添加特定参数
@@ -360,7 +360,13 @@ async function updateTaskEnable(
   if (!taskType) return
 
   try {
-    await invoke('update_config', { name: taskType, params: { enable } })
+    const taskIndex = navigation.value.findIndex(
+      (item) => item.name === taskName,
+    )
+    await invoke('update_config', {
+      name: taskType,
+      params: { enable, index: taskIndex },
+    })
   } catch (error) {
     console.error('更新任务启用状态失败:', error)
     throw error
