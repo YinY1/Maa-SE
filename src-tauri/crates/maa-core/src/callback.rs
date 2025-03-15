@@ -5,6 +5,8 @@ use maa_types::primitive::AsstMsgId;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
+use crate::msg_handler;
+
 /// default callback function
 ///
 /// # Safety
@@ -41,9 +43,14 @@ pub unsafe extern "C" fn default_callback_log(
         Level::Debug => log::debug!("[{}] {}", msg_type, json_str),
         Level::Trace => log::trace!("[{}] {}", msg_type, json_str),
     }
+
+    // 向前端发送简化log
+    if let Err(e) = msg_handler::notify(msg_type, json_str) {
+        log::error!("[{}] {}", msg_type, e)
+    }
 }
 
-#[derive(Default, Debug, Display, FromRepr)]
+#[derive(Default, Debug, Display, Clone, Copy, FromRepr)]
 #[repr(i32)]
 pub enum AsstMsgCode {
     /* Global Info */

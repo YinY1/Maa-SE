@@ -1,7 +1,5 @@
 use std::{env::current_dir, ops::Deref, sync::RwLock};
 
-use anyhow::Context;
-use log::info;
 use maa_core::reload_core;
 use maa_updater::{
     updater::{UpdateResult, Updater},
@@ -9,7 +7,7 @@ use maa_updater::{
 };
 use tauri::State;
 
-use crate::CommandResult;
+use crate::{log_error_context, CommandResult};
 
 pub struct VersionState(RwLock<Versions>);
 
@@ -28,44 +26,51 @@ impl VersionState {
 }
 
 #[tauri::command]
-pub(crate) async fn update(
+pub async fn update(
     target_type: ClientVersionRequest,
     updater: State<'_, Updater>,
     versions: State<'_, VersionState>,
-) -> CommandResult<()> {
-    let dst = current_dir().context("cwd").map_err(|e| format!("{e:?}"))?;
+) -> CommandResult<UpdateResult> {
+    let dst = current_dir().map_err(|e| log_error_context("获取CWD", e))?;
     let ver = versions.read().unwrap().client.clone();
     match updater.update(ver, target_type, &dst).await {
         Ok(res) => {
-            info!("{}", res);
-            if let UpdateResult::ClientSuccess(v) = res {
+            if let UpdateResult::ClientSuccess(v) = &res {
                 let mut guard = versions.write().unwrap();
-                guard.client = v;
-                guard.client.write().map_err(|e| format!("{e:?}"))?;
-                guard.resource.reload().map_err(|e| format!("{e:?}"))?;
-                reload_core().map_err(|e| format!("reload core err: {e:?}"))?;
+                guard.client = v.clone();
+                guard
+                    .client
+                    .write()
+                    .map_err(|e| log_error_context("写入客户端配置", e))?;
+                guard
+                    .resource
+                    .reload()
+                    .map_err(|e| log_error_context("写入资源配置", e))?;
+                reload_core().map_err(|e| log_error_context("重启MaaCore", e))?;
             }
-            Ok(())
+            Ok(res)
         }
-        Err(e) => Err(format!("update error: {e:?}")),
+        Err(e) => {
+            log_error_context("升级客户端", e);
+            Err(())
+        }
     }
 }
 
 #[tauri::command]
-pub(crate) async fn update_resource(
+pub async fn update_resource(
     updater: State<'_, Updater>,
     versions: State<'_, VersionState>,
-) -> CommandResult<()> {
-    let dst = current_dir().context("cwd").map_err(|e| format!("{e:?}"))?;
+) -> CommandResult<UpdateResult> {
+    let dst = current_dir().map_err(|e| log_error_context("获取CWD", e))?;
     let ver = versions.read().unwrap().resource.clone();
-    match updater.update_resource(ver, &dst).await {
-        Ok(res) => {
-            info!("{}", res);
+    updater
+        .update_resource(ver, &dst)
+        .await
+        .inspect(|res| {
             if let UpdateResult::ResourceSuccess(v) = res {
-                versions.write().unwrap().resource = v;
+                versions.write().unwrap().resource = v.clone();
             }
-            Ok(())
-        }
-        Err(e) => Err(format!("update error: {e:?}")),
-    }
+        })
+        .map_err(|e| log_error_context("升级资源", e))
 }

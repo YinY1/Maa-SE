@@ -14,7 +14,7 @@ use maa_updater::{updater::Updater, version::Versions};
 use tauri::{utils::platform::current_exe, AppHandle, Manager};
 use updater::{update, update_resource, VersionState};
 
-pub(crate) type CommandResult<T> = Result<T, String>;
+pub(crate) type CommandResult<T> = Result<T, ()>;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() -> anyhow::Result<()> {
@@ -49,11 +49,18 @@ pub async fn run() -> anyhow::Result<()> {
 }
 
 fn init_log(handle: AppHandle) -> anyhow::Result<Handle> {
-    let config = log_config(handle, log::LevelFilter::Info).context("get log config")?;
+    let config = log_config(handle, log::LevelFilter::Trace).context("get log config")?;
     init_config(config).context("init log with config")
 }
 
 fn init_cwd() -> anyhow::Result<()> {
     let exe = current_exe().context("get exe path")?;
     set_current_dir(exe.parent().unwrap()).context("set cwd")
+}
+
+/// 使用debug!() 打印错误栈，并调用error!("{context}")。
+/// 不返回错误
+pub(crate) fn log_error_context<E: std::fmt::Debug>(context: &str, error: E) {
+    log::error!("{context}");
+    log::debug!("{error:?}");
 }

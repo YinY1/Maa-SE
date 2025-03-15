@@ -8,7 +8,7 @@ use fs_extra::dir::{CopyOptions, move_dir};
 use log::{debug, trace, warn};
 use reqwest::header::ACCEPT;
 use semver::Version;
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use strum::Display;
 use tempfile::{TempDir, tempdir};
 use tokio::{fs::File, io::AsyncWriteExt, join, task::spawn_blocking};
@@ -59,7 +59,7 @@ pub struct Asset {
     pub download_url: String,
 }
 
-#[derive(Display)]
+#[derive(Display, Serialize)]
 pub enum UpdateResult {
     Updating,
     AlreadyUpdated,
