@@ -61,6 +61,7 @@ pub fn run_core(
     }
 
     trace!("run tasks");
+    STOP_SIGN.store(false, Ordering::Release);
     assistant.start().context("start")?;
     while assistant.running() && !STOP_SIGN.load(Ordering::Acquire) {
         sleep(Duration::from_millis(300)); // TODO: 优化sleep

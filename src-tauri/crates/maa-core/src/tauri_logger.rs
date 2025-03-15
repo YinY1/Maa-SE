@@ -5,18 +5,18 @@ use tauri::AppHandle;
 const CALLBACK_EVENT: &str = "callback-log";
 
 #[derive(Debug)]
-pub struct Logger {
+pub struct SeAppender {
     app: AppHandle,
 }
 
-impl Logger {
+impl SeAppender {
     pub fn new(app: AppHandle) -> Self {
         Self { app }
     }
 }
 
 #[cfg(not(feature = "dynamic-log-level"))]
-impl std::io::Write for Logger {
+impl std::io::Write for SeAppender {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let content = str::from_utf8(buf)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
@@ -52,15 +52,16 @@ mod dynamic_log {
                 },
             },
         },
-        config::{Appender, Root},
+        config::{Appender, Logger, Root},
     };
     use tauri::{AppHandle, Emitter};
 
-    use super::{CALLBACK_EVENT, Logger};
+    use super::{CALLBACK_EVENT, SeAppender};
 
     const ROLLING_FILE_APPENDER_NAME: &str = "file";
-    const CALLBACK_APPENDER_NAME: &str = "callback";
+    const CALLBACK_APPENDER_NAME: &str = "callback"; // TODO:换个更合适的名字
     const LOG_FILE_PATH: &str = "debug/maa-se.log";
+    const ACTIVE_CRATES_NAMES: &[&str] = &["maa_se", "maa_cfg", "maa_core", "maa_updater"];
 
     const MAX_LOG_SIZE: u64 = 10_000_000; // 10 MB
     const MAX_LOG_COUNT: u32 = 5;
@@ -76,7 +77,7 @@ mod dynamic_log {
         }
     }
 
-    impl Append for Logger {
+    impl Append for SeAppender {
         fn append(&self, record: &log::Record) -> anyhow::Result<()> {
             let content = match record.args().as_str() {
                 Some(s) => s,
@@ -91,11 +92,14 @@ mod dynamic_log {
     }
 
     // TODO: 优化每次都要重新build一次
-    // FIXME: extern crate的trace信息会被打印出来, roller文件位置不对（到cwd了）
-    pub fn log_config(handle: AppHandle, level: LevelFilter) -> anyhow::Result<Config> {
+    /// setup loggers config,
+    /// gui logger in INFO,
+    /// file logger in `level`
+    pub fn log_config(handle: AppHandle, file_level: LevelFilter) -> anyhow::Result<Config> {
+        // rolling file appender
         let trigger = SizeTrigger::new(MAX_LOG_SIZE);
         let roller = FixedWindowRoller::builder()
-            .build(constcat::concat!(LOG_FILE_PATH, ".{}"), MAX_LOG_COUNT) // 保留最多10个备份文件（配合时间清理）
+            .build(constcat::concat!(LOG_FILE_PATH, ".{}"), MAX_LOG_COUNT)
             .unwrap();
         let appender = RollingFileAppender::builder()
             .build(
@@ -104,15 +108,29 @@ mod dynamic_log {
             )
             .unwrap();
         let rolling = Appender::builder().build(ROLLING_FILE_APPENDER_NAME, Box::new(appender));
-        let callback =
-            Appender::builder().build(CALLBACK_APPENDER_NAME, Box::new(Logger::new(handle)));
+
+        let loggers = ACTIVE_CRATES_NAMES.iter().map(|name| {
+            Logger::builder()
+                .appender(ROLLING_FILE_APPENDER_NAME)
+                .additive(false)
+                .build(*name, file_level)
+        });
+
+        let gui =
+            Appender::builder().build(CALLBACK_APPENDER_NAME, Box::new(SeAppender::new(handle)));
+        let gui_logger = Logger::builder()
+            .appender(CALLBACK_APPENDER_NAME)
+            .additive(false)
+            .build("maa_core::msg_handler", LevelFilter::Info);
 
         let root = Root::builder()
-            .appenders([ROLLING_FILE_APPENDER_NAME, CALLBACK_APPENDER_NAME])
-            .build(level);
+            .appender(ROLLING_FILE_APPENDER_NAME)
+            .build(LevelFilter::Error);
 
         Config::builder()
-            .appenders([callback, rolling])
+            .appenders([gui, rolling])
+            .loggers(loggers)
+            .logger(gui_logger)
             .build(root)
             .context("build log4rs config")
     }
