@@ -34,3 +34,4 @@ maa-core = { path = "../maa-core", features = [
 ] }
 maa-cfg = { path = "../maa-cfg" }
 maa-updater = { path = "../maa-updater" }
+maa-callback = { path = "../maa-callback" }

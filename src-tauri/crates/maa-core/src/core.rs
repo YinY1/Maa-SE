@@ -4,22 +4,18 @@ use std::{
         current_exe,
     },
     ffi::c_void,
-    sync::{
-        OnceLock,
-        atomic::{AtomicBool, Ordering},
-    },
-    thread::sleep,
+    sync::OnceLock,
     time::Duration,
 };
 
-use anyhow::{Context, anyhow};
+use anyhow::{Context, anyhow, bail};
+use crossbeam_channel::select;
 use log::{debug, trace};
+use maa_callback::callback::STOP_CHAN;
 use maa_cfg::task::TaskQueue;
 use maa_sys::Assistant;
 
 use crate::{ADB_PATH, DEFAULT_ADB_ADDRESS};
-
-static STOP_SIGN: AtomicBool = AtomicBool::new(false);
 
 const MAA_CORE: &str = constcat::concat!(DLL_PREFIX, "MaaCore", DLL_SUFFIX);
 static LOAD_CORE: OnceLock<()> = OnceLock::new();
@@ -52,7 +48,6 @@ pub fn run_core(
 
     trace!("append tasks");
 
-    // FIXME: 没有和ui的任务列表顺序匹配
     for (name, params) in tasks {
         let id = assistant
             .append_task(name.as_str(), params.as_str())
@@ -61,14 +56,21 @@ pub fn run_core(
     }
 
     trace!("run tasks");
-    STOP_SIGN.store(false, Ordering::Release);
     assistant.start().context("start")?;
-    while assistant.running() && !STOP_SIGN.load(Ordering::Acquire) {
-        sleep(Duration::from_millis(300)); // TODO: 优化sleep
+    loop {
+        select! {
+            recv(STOP_CHAN.rx) -> msg => {
+                if let Err(e) = msg {
+                    bail!(e);
+                }
+                break;
+            }
+            default(Duration::from_secs(1)) => if !assistant.running() {
+                break;
+            }
+        }
     }
-    STOP_SIGN.store(false, Ordering::Release);
     trace!("stop asst");
-    // TODO: asst销毁发回调
     assistant.stop().context("stop")
 }
 
@@ -86,9 +88,4 @@ pub fn run_core_tauri(tasks: TaskQueue) -> anyhow::Result<()> {
     use maa_callback::callback::default_callback_log;
 
     run_core(tasks, Some(default_callback_log), None)
-}
-
-pub fn stop_core() {
-    trace!("user stop manually");
-    STOP_SIGN.store(true, Ordering::Release);
 }

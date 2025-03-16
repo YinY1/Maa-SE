@@ -2364,6 +2364,7 @@ name = "maa-callback"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "crossbeam-channel",
  "log",
  "maa-types",
  "serde",
@@ -2392,6 +2393,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "constcat",
+ "crossbeam-channel",
  "log",
  "log4rs",
  "maa-callback",
@@ -2407,6 +2409,7 @@ dependencies = [
  "anyhow",
  "log",
  "log4rs",
+ "maa-callback",
  "maa-cfg",
  "maa-core",
  "maa-sys",

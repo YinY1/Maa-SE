@@ -1,5 +1,9 @@
-use std::ffi::{CStr, c_char, c_void};
+use std::{
+    ffi::{CStr, c_char, c_void},
+    sync::LazyLock,
+};
 
+use crossbeam_channel::{Receiver, Sender, bounded};
 use log::Level;
 use maa_types::primitive::AsstMsgId;
 use strum::{Display, FromRepr};
@@ -8,6 +12,16 @@ use crate::{
     callback_types::{ConnectionInfo, ConnectionInfoType},
     msg_handler,
 };
+
+pub struct StopChan {
+    pub tx: Sender<()>,
+    pub rx: Receiver<()>,
+}
+
+pub static STOP_CHAN: LazyLock<StopChan> = LazyLock::new(|| {
+    let (tx, rx) = bounded(0);
+    StopChan { tx, rx }
+});
 
 /// default callback function
 ///
@@ -44,6 +58,12 @@ pub unsafe extern "C" fn default_callback_log(
         Level::Info => log::info!("[{}] {}", msg_type, json_str),
         Level::Debug => log::debug!("[{}] {}", msg_type, json_str),
         Level::Trace => log::trace!("[{}] {}", msg_type, json_str),
+    }
+
+    if matches!(msg_type, AsstMsgCode::AllTasksCompleted) {
+        if let Err(e) = STOP_CHAN.tx.send(()) {
+            log::error!("{e}");
+        }
     }
 
     // 简化log
