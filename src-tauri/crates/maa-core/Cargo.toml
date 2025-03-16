@@ -12,6 +12,7 @@ maa-callback = { path = "../maa-callback" }
 tauri = { workspace = true, optional = true }
 log.workspace = true
 constcat.workspace = true
+crossbeam-channel.workspace = true
 
 log4rs = { workspace = true, optional = true, features = [
     "rolling_file_appender",

@@ -15,8 +15,11 @@ pub async fn run_daily(configs: State<'_, Config>) -> CommandResult<()> {
 }
 
 #[tauri::command]
-pub fn stop_core() {
-    maa_core::stop_core();
+pub async fn stop_core() -> CommandResult<()> {
+    spawn_blocking(move || maa_callback::callback::STOP_CHAN.tx.send(()))
+        .await
+        .unwrap()
+        .map_err(|e| log_error_context("send stop sign", e))
 }
 
 /// update config json with given  name and params.

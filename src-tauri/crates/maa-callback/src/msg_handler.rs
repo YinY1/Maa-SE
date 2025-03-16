@@ -23,6 +23,9 @@ pub fn notify(code: AsstMsgCode, msg: &str) -> anyhow::Result<()> {
             let task_name = task.get_task_chain_name();
             info!("任务完成：{}", task_name);
         }
+        AsstMsgCode::TaskChainStopped => {
+            info!("已停止");
+        }
         AsstMsgCode::TaskChainError => {
             let task: TaskChainInfo =
                 serde_json::from_str(msg).context("parse task chain error")?;

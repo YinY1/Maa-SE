@@ -338,6 +338,7 @@ async function toggleTask(): Promise<void> {
       console.log('开始执行任务')
       isRunning.value = true
       await invoke('run_daily')
+      isRunning.value = false
     }
   } catch (error) {
     isRunning.value = false
