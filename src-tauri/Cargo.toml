@@ -28,6 +28,7 @@ semver = "1"
 chrono = "0.4"
 fs_extra = "1"
 dashmap = "6"
+itertools = "0.14"
 
 [workspace.dependencies.maa-types]
 git = "https://github.com/MaaAssistantArknights/maa-cli"

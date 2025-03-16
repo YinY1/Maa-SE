@@ -12,3 +12,5 @@ strum.workspace = true
 log.workspace = true
 tokio = { workspace = true, features = ["fs"] }
 dashmap = { workspace = true, features = ["serde"] }
+itertools.workspace = true
+constcat.workspace = true

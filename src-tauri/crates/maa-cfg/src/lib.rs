@@ -8,6 +8,7 @@ use std::{env::current_dir, fs::create_dir_all, path::PathBuf, str::FromStr};
 
 use anyhow::{Context, bail};
 use dashmap::DashMap;
+use itertools::Itertools;
 use log::trace;
 use serde::Serialize;
 use strum::{Display, EnumString};
@@ -16,13 +17,14 @@ use tokio::{fs, join};
 
 pub const CFG_DIR: &str = "config";
 pub const DEFAULT_CFG_PATH: &str = "default";
-pub const DAILY_CFG: &str = "daily.json";
-pub const EXTRA_TASK_CFG: &str = "extra-task.json";
-pub const SETTINGS_CFG: &str = "settings.json";
-pub const TOOL_STORAGE: &str = "tool-storage.json";
-pub const CUSTOMS_CFG: &str = "customs.json";
-pub const CUSTOMS_STORAGE: &str = "custom-storage.json";
-pub const VERSION_JSON: &str = "versions.json";
+pub const CFG_SUFFIX: &str = ".json";
+pub const DAILY_CFG: &str = "daily";
+pub const EXTRA_TASK_CFG: &str = "extra-task";
+pub const SETTINGS_CFG: &str = "settings";
+pub const TOOL_STORAGE: &str = "tool-storage";
+pub const CUSTOMS_CFG: &str = "customs";
+pub const CUSTOMS_STORAGE: &str = "custom-storage";
+pub const VERSION_JSON: &str = "versions";
 
 /// 存放数据，而非gui配置本身
 #[derive(Debug, Display, EnumString)]
@@ -64,6 +66,12 @@ pub struct Config {
     cfgs: DashMap<String, ConfigValue>,
 }
 
+macro_rules! get_cfg_path {
+    ($path:expr, $ident:ident) => {
+        $path.join(constcat::concat!($ident, CFG_SUFFIX))
+    };
+}
+
 impl Config {
     pub async fn load(cfg_group: Option<String>) -> anyhow::Result<Self> {
         let path = current_dir()
@@ -76,13 +84,12 @@ impl Config {
         {
             anyhow::bail!(e);
         };
-
         let (daily, tools, settings, customs, extra) = join!(
-            load_json_obj(path.join(DAILY_CFG)),
-            load_json_obj(path.join(TOOL_STORAGE)),
-            load_json_obj(path.join(SETTINGS_CFG)),
-            load_json_obj(path.join(CUSTOMS_CFG)),
-            load_json_obj(path.join(EXTRA_TASK_CFG)),
+            load_json_obj(get_cfg_path!(path, DAILY_CFG)),
+            load_json_obj(get_cfg_path!(path, DAILY_CFG)),
+            load_json_obj(get_cfg_path!(path, DAILY_CFG)),
+            load_json_obj(get_cfg_path!(path, DAILY_CFG)),
+            load_json_obj(get_cfg_path!(path, DAILY_CFG)),
         );
 
         let cfgs = DashMap::new();
@@ -110,31 +117,31 @@ impl Config {
         trace!("cache config and write");
         match cfg_type {
             ConfigType::Task(TaskType::Daily(t)) => {
-                let path = self.path.join(DAILY_CFG);
+                let path = get_cfg_path!(self.path, DAILY_CFG);
                 self.set_and_write_impl(DAILY_CFG, path, t.to_string(), params)
                     .await
                     .context("write daily.json")
             }
             ConfigType::Task(TaskType::Extra(t)) => {
-                let path = self.path.join(EXTRA_TASK_CFG);
+                let path = get_cfg_path!(self.path, EXTRA_TASK_CFG);
                 self.set_and_write_impl(EXTRA_TASK_CFG, path, t.to_string(), params)
                     .await
                     .context("write extra_task.json")
             }
             ConfigType::Task(TaskType::Custom(t)) => {
-                let path = self.path.join(CUSTOMS_CFG);
+                let path = get_cfg_path!(self.path, CUSTOMS_CFG);
                 self.set_and_write_impl(CUSTOMS_CFG, path, t, params)
                     .await
                     .context("write customs.json")
             }
             ConfigType::Storage(Storage::Tool(t)) => {
-                let path = self.path.join(TOOL_STORAGE);
+                let path = get_cfg_path!(self.path, TOOL_STORAGE);
                 self.set_and_write_impl(TOOL_STORAGE, path, t, params)
                     .await
                     .context("write customs.json")
             }
             ConfigType::Storage(Storage::Custom(t)) => {
-                let path = self.path.join(CUSTOMS_STORAGE);
+                let path = get_cfg_path!(self.path, CUSTOMS_STORAGE);
                 self.set_and_write_impl(CUSTOMS_STORAGE, path, t, params)
                     .await
                     .context("write custom-storage.json")
@@ -164,7 +171,9 @@ impl Config {
             .insert(key, value);
 
         let contents = serde_json::to_string_pretty(target.value()).context("serde json cache")?;
-        fs::write(path, contents).await.context("write config")
+        fs::write(&path, contents)
+            .await
+            .with_context(|| format!("write config to {path:?}"))
     }
 
     pub fn available_daily_tasks(&self) -> TaskQueue {
@@ -178,7 +187,8 @@ impl Config {
             .as_object()
             .unwrap()
             .iter()
-            .filter(|(_, params)| params["enable"].as_bool().unwrap())
+            .filter(|(_, params)| params["enable"].as_bool().unwrap_or_default())
+            .sorted_by_key(|(_, params)| params["index"].as_i64().unwrap_or_default())
             .map(|(name, params)| (name.to_string(), params.to_string()))
             .collect()
     }

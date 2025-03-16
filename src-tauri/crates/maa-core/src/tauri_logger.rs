@@ -7,11 +7,17 @@ const CALLBACK_EVENT: &str = "callback-log";
 #[derive(Debug)]
 pub struct SeAppender {
     app: AppHandle,
+    #[cfg(feature = "dynamic-log-level")]
+    encoder: Box<dyn log4rs::encode::Encode>,
 }
 
 impl SeAppender {
     pub fn new(app: AppHandle) -> Self {
-        Self { app }
+        Self {
+            app,
+            #[cfg(feature = "dynamic-log-level")]
+            encoder: Box::new(log4rs::encode::pattern::PatternEncoder::new("[{l}] {m}{n}")),
+        }
     }
 }
 
@@ -36,7 +42,7 @@ impl std::io::Write for SeAppender {
 
 #[cfg(feature = "dynamic-log-level")]
 mod dynamic_log {
-    use std::{ops::Deref, sync::OnceLock};
+    use std::{io, ops::Deref, sync::OnceLock};
 
     use anyhow::Context;
     use log::LevelFilter;
@@ -53,6 +59,7 @@ mod dynamic_log {
             },
         },
         config::{Appender, Logger, Root},
+        encode,
     };
     use tauri::{AppHandle, Emitter};
 
@@ -62,7 +69,7 @@ mod dynamic_log {
     const CALLBACK_APPENDER_NAME: &str = "callback"; // TODO:换个更合适的名字
     const LOG_FILE_PATH: &str = "debug/maa-se.log";
     const ACTIVE_CRATES_NAMES: &[&str] = &[
-        "maa_se",
+        "maa_se_lib",
         "maa_cfg",
         "maa_core",
         "maa_updater",
@@ -83,14 +90,29 @@ mod dynamic_log {
         }
     }
 
+    struct StringWriter(String);
+
+    impl io::Write for StringWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            let s = std::str::from_utf8(buf)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            self.0.push_str(s);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl encode::Write for StringWriter {}
+
     impl Append for SeAppender {
         fn append(&self, record: &log::Record) -> anyhow::Result<()> {
-            let content = match record.args().as_str() {
-                Some(s) => s,
-                None => &record.args().to_string(),
-            };
+            let mut content = StringWriter(String::new());
+            self.encoder.encode(&mut content, record)?;
             self.app
-                .emit(CALLBACK_EVENT, content)
+                .emit(CALLBACK_EVENT, content.0)
                 .map_err(|e| anyhow::anyhow!(e))
         }
 
