@@ -68,6 +68,7 @@ pub fn run_core(
     }
     STOP_SIGN.store(false, Ordering::Release);
     trace!("stop asst");
+    // TODO: asst销毁发回调
     assistant.stop().context("stop")
 }
 
@@ -82,7 +83,9 @@ pub fn reload_core() -> anyhow::Result<()> {
 
 #[cfg(feature = "tauri-handle")]
 pub fn run_core_tauri(tasks: TaskQueue) -> anyhow::Result<()> {
-    run_core(tasks, Some(crate::callback::default_callback_log), None)
+    use maa_callback::callback::default_callback_log;
+
+    run_core(tasks, Some(default_callback_log), None)
 }
 
 pub fn stop_core() {

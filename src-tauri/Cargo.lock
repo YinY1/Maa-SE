@@ -2345,6 +2345,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "maa-callback"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "maa-types",
+ "serde",
+ "serde_json",
+ "strum",
+]
+
+[[package]]
 name = "maa-cfg"
 version = "0.1.0"
 dependencies = [
@@ -2365,12 +2377,9 @@ dependencies = [
  "constcat",
  "log",
  "log4rs",
+ "maa-callback",
  "maa-cfg",
  "maa-sys",
- "maa-types",
- "serde",
- "serde_json",
- "strum",
  "tauri",
 ]
 
