@@ -61,7 +61,13 @@ mod dynamic_log {
     const ROLLING_FILE_APPENDER_NAME: &str = "file";
     const CALLBACK_APPENDER_NAME: &str = "callback"; // TODO:换个更合适的名字
     const LOG_FILE_PATH: &str = "debug/maa-se.log";
-    const ACTIVE_CRATES_NAMES: &[&str] = &["maa_se", "maa_cfg", "maa_core", "maa_updater"];
+    const ACTIVE_CRATES_NAMES: &[&str] = &[
+        "maa_se",
+        "maa_cfg",
+        "maa_core",
+        "maa_updater",
+        "maa_callback",
+    ];
 
     const MAX_LOG_SIZE: u64 = 10_000_000; // 10 MB
     const MAX_LOG_COUNT: u32 = 5;
@@ -121,7 +127,7 @@ mod dynamic_log {
         let gui_logger = Logger::builder()
             .appender(CALLBACK_APPENDER_NAME)
             .additive(false)
-            .build("maa_core::msg_handler", LevelFilter::Info);
+            .build("maa_callback::msg_handler", LevelFilter::Info);
 
         let root = Root::builder()
             .appender(ROLLING_FILE_APPENDER_NAME)

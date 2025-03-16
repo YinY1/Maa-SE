@@ -1,6 +1,7 @@
 #![deny(warnings)]
 
 mod core;
+pub mod result;
 mod updater;
 
 use core::{get_config, run_daily, set_log_level, stop_core, update_config};

@@ -7,13 +7,10 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 maa-sys.workspace = true
-maa-types.workspace = true
 maa-cfg = { path = "../maa-cfg" }
+maa-callback = { path = "../maa-callback" }
 tauri = { workspace = true, optional = true }
 log.workspace = true
-strum.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 constcat.workspace = true
 
 log4rs = { workspace = true, optional = true, features = [

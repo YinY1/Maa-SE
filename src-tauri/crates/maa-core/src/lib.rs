@@ -1,11 +1,9 @@
 #![deny(warnings)]
 #![feature(once_cell_try)]
 
-pub mod callback;
 pub mod core;
 #[cfg(feature = "tauri-handle")]
 pub mod tauri_logger;
-pub mod msg_handler;
 
 pub use core::*;
 

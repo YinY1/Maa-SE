@@ -2,10 +2,12 @@ use std::ffi::{CStr, c_char, c_void};
 
 use log::Level;
 use maa_types::primitive::AsstMsgId;
-use serde::Deserialize;
-use strum::{Display, EnumString, FromRepr};
+use strum::{Display, FromRepr};
 
-use crate::msg_handler;
+use crate::{
+    callback_types::{ConnectionInfo, ConnectionInfoType},
+    msg_handler,
+};
 
 /// default callback function
 ///
@@ -44,7 +46,7 @@ pub unsafe extern "C" fn default_callback_log(
         Level::Trace => log::trace!("[{}] {}", msg_type, json_str),
     }
 
-    // 向前端发送简化log
+    // 简化log
     if let Err(e) = msg_handler::notify(msg_type, json_str) {
         log::error!("[{}] {}", msg_type, e)
     }
@@ -129,59 +131,4 @@ impl AsstMsgCode {
             AsstMsgCode::AsyncCallInfo | AsstMsgCode::ConnectionInfo => Level::Debug,
         }
     }
-}
-
-#[derive(Debug, Display, EnumString)]
-pub enum ConnectionInfoType {
-    /// 已连接，注意此时的 uuid 字段值为空（下一步才是获取）
-    Connected,
-    /// 已获取到设备唯一码
-    UuidGot,
-    /// 分辨率不被支持
-    UnsupportedResolution,
-    /// 分辨率获取错误
-    ResolutionError,
-    /// 分辨率获取成功
-    ResolutionGot,
-    /// 连接断开（adb / 模拟器 炸了），正在重连
-    Reconnecting,
-    /// 连接断开（adb / 模拟器 炸了），重连成功
-    Reconnected,
-    /// 连接断开（adb / 模拟器 炸了），并重试失败
-    Disconnect,
-    /// 截图失败（adb / 模拟器 炸了），并重试失败
-    ScreencapFailed,
-    /// 不支持的触控模式
-    TouchModeNotAvailable,
-    /// 其他
-    Others,
-}
-
-impl ConnectionInfoType {
-    pub fn level(&self) -> Level {
-        match self {
-            ConnectionInfoType::UnsupportedResolution
-            | ConnectionInfoType::ResolutionError
-            | ConnectionInfoType::ScreencapFailed
-            | ConnectionInfoType::TouchModeNotAvailable => Level::Error,
-
-            ConnectionInfoType::Reconnecting => Level::Warn,
-
-            ConnectionInfoType::Connected
-            | ConnectionInfoType::Reconnected
-            | ConnectionInfoType::Disconnect => Level::Info,
-
-            ConnectionInfoType::ResolutionGot
-            | ConnectionInfoType::UuidGot
-            | ConnectionInfoType::Others => Level::Debug,
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ConnectionInfo {
-    pub what: String,         // 信息类型
-    pub why: Option<String>,  // 信息原因
-    pub uuid: Option<String>, // 设备唯一码（连接失败时为空）
-    pub details: serde_json::Value,
 }
