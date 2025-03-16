@@ -31,21 +31,19 @@ pub fn notify(code: AsstMsgCode, msg: &str) -> anyhow::Result<()> {
         }
         AsstMsgCode::SubTaskStart => {
             let sub_task: SubTask = serde_json::from_str(msg).context("parse sub task")?;
-            let info = sub_task
+            sub_task
                 .get_task_info()
-                .context("get sub task Chinese info")?;
-            if let Some(info) = info {
-                info!("{}", info)
-            }
+                .context("get sub task Chinese info")?
+                .inspect(|i| info!("{i}"));
         }
         AsstMsgCode::ConnectionInfo => {} // TODO: 截图时间 adb相关
         AsstMsgCode::SubTaskExtraInfo => {
             let sub_task_ex: SubTaskExtraInfo =
                 serde_json::from_str(msg).context("parse sub task ex")?;
-            let info = sub_task_ex
+            sub_task_ex
                 .to_exact_info()
-                .context("get sub task Chinese ex info")?;
-            info!("{}", info)
+                .context("get sub task Chinese ex info")?
+                .inspect(|i| info!("{i}"));
         }
         AsstMsgCode::Unknown => error!("未知错误！"),
         _ => {}

@@ -1,5 +1,3 @@
-use std::fmt::Write;
-
 use anyhow::Context;
 pub use depot_types::*;
 pub use facility_types::*;
@@ -170,61 +168,65 @@ pub struct SubTaskExtraInfo {
     details: Value, // 信息详情
 }
 
+pub trait ExtraInfoDisplay {
+    fn into_info(self) -> anyhow::Result<String>;
+}
+
 impl SubTaskExtraInfo {
-    pub fn to_exact_info(self) -> anyhow::Result<String> {
-        match self.what.as_str() {
+    pub fn to_exact_info(self) -> anyhow::Result<Option<String>> {
+        let info = match self.what.as_str() {
             "StageDrops" => self.to_drops_info(),
-            "RecruitResult" => self.to_recruit_info(),
+            "RecruitResult" => self.to_recruit_result_info(),
             // TODO 其他结果
-            _ => Ok(String::new()),
-        }
+            _ => return Ok(None),
+        };
+        info.map(Some)
     }
 
     pub fn to_drops_info(self) -> anyhow::Result<String> {
         let stage_drops: StageDrops =
             serde_json::from_value(self.details).context("parse stage drops")?;
-
-        let mut s = String::new();
-        writeln!(
-            s,
-            "{}: {}星通过\n材料掉落:",
-            stage_drops.stage.stage_code, stage_drops.stars
-        )?;
-
-        stage_drops
-            .stats
-            .into_iter()
-            .try_for_each(|stat| writeln!(s, "{}", stat))?;
-
-        Ok(s)
+        stage_drops.into_info()
     }
 
-    pub fn to_recruit_info(self) -> anyhow::Result<String> {
+    pub fn to_recruit_result_info(self) -> anyhow::Result<String> {
         let recuit_result: RecruitResult =
             serde_json::from_value(self.details).context("parse recruit result")?;
-
-        let mut s = String::new();
-        writeln!(
-            s,
-            "公招标签（{}星）:{:?}",
-            recuit_result.level, recuit_result.tags
-        )?;
-        Ok(s)
+        recuit_result.into_info()
     }
 }
 
 /// 关卡掉落相关json
 #[allow(unused)]
 pub mod stage_types {
-    use std::fmt::{Debug, Display};
+    use std::fmt::{Debug, Display, Write};
 
     use serde::Deserialize;
+
+    use super::ExtraInfoDisplay;
 
     #[derive(Deserialize, Debug)]
     pub struct StageDrops {
         pub stage: Stage,
         pub stars: u8,
         pub stats: Vec<Stat>,
+    }
+
+    impl ExtraInfoDisplay for StageDrops {
+        fn into_info(self) -> anyhow::Result<String> {
+            let mut s = String::new();
+            writeln!(
+                s,
+                "{}: {}星通过\n材料掉落:",
+                self.stage.stage_code, self.stars
+            )?;
+
+            self.stats
+                .into_iter()
+                .try_for_each(|stat| writeln!(s, "{}", stat))?;
+
+            Ok(s)
+        }
     }
 
     #[derive(Deserialize, Debug)]
@@ -245,8 +247,8 @@ pub mod stage_types {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             writeln!(
                 f,
-                "'{}'*{} (+{})",
-                self.item_name, self.quantity, self.add_quantity
+                "[{}]+{} (总计:{})",
+                self.item_name, self.add_quantity, self.quantity,
             )
         }
     }
@@ -267,6 +269,8 @@ pub mod stage_types {
 #[allow(unused)] //TODO: 公招识别模块相关暂未实现
 pub mod recruit_types {
     use serde::Deserialize;
+
+    use super::ExtraInfoDisplay;
 
     #[derive(Deserialize, Debug)]
     pub struct RecruitTagsDetected {
@@ -298,6 +302,12 @@ pub mod recruit_types {
         pub result: Vec<ResultEntry>,
     }
 
+    impl ExtraInfoDisplay for RecruitResult {
+        fn into_info(self) -> anyhow::Result<String> {
+            Ok(format!("公招标签 ({}星):{:#?}", self.level, self.tags))
+        }
+    }
+
     #[derive(Deserialize, Debug)]
     pub struct RecruitTagsRefreshed {
         count: u8,
@@ -310,7 +320,16 @@ pub mod recruit_types {
         continue_: bool,
     }
 
-    pub type RecruitTagsSelected = RecruitTagsDetected;
+    #[derive(Deserialize, Debug)]
+    pub struct RecruitTagsSelected {
+        tags: Vec<String>,
+    }
+
+    impl ExtraInfoDisplay for RecruitTagsSelected {
+        fn into_info(self) -> anyhow::Result<String> {
+            Ok(format!("选择tag：{:#?}", self.tags))
+        }
+    }
 }
 
 /// 基建相关json
