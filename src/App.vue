@@ -10,8 +10,17 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
+
 import LeftBar from './components/LeftBar.vue'
 import LogViewer from './components/LogViewer.vue'
 import Task from './components/Task.vue'
 import TaskConfig from './components/TaskConfig.vue'
+import { useTaskState } from './composables/useTaskState'
+
+const { loadConfigs } = useTaskState()
+
+onMounted(async () => {
+  await loadConfigs()
+})
 </script>
