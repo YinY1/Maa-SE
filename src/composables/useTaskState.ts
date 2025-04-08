@@ -17,39 +17,73 @@ export interface TaskConfig {
   displayMap?: Record<string, string>
 }
 
-interface StartUpParams {
-  client_type: string
-  start_game_enabled: boolean
+interface TaskParams {
+  enable?: boolean
+  index?: number
+  [key: string]: any
 }
 
-interface FightParams {
-  stage: string
-  enable?: boolean
-  series?: number
-}
+type TaskConverter = (configs: TaskConfig[]) => TaskParams
 
-interface InfrastParams {
-  enable?: boolean
-  facility: string[]
-  drones?: string
-  threshold?: number
-  replenish?: boolean
-  dorm_notstationed_enabled?: boolean
-  dorm_trust_enabled?: boolean
-}
-
-interface AwardParams {
-  enable?: boolean
-  award?: boolean
-  mail?: boolean
-  recruit?: boolean
-}
-
-interface MallParams {
-  enable?: boolean
-  shopping?: boolean
-  buy_first?: string[]
-  blacklist?: string[]
+const taskConverters: Record<string, TaskConverter> = {
+  StartUp: (configs) => ({
+    client_type:
+      { 官服: 'Official', B服: 'Bilibili' }[
+        configs.find((c) => c.label === '客户端版本')?.value as string
+      ] || '',
+    start_game_enabled:
+      (configs.find((c) => c.label === '自动启动客户端')?.value as boolean) ||
+      false,
+  }),
+  Fight: (configs) => ({
+    stage: (configs.find((c) => c.label === '关卡名称')?.value as string) || '',
+    series: Number(configs.find((c) => c.label === '连续作战次数')?.value) || 1,
+  }),
+  Infrast: (configs) => ({
+    facility: (configs.find((c) => c.label === '设施列表')
+      ?.value as string[]) || ['Mfg'],
+    drones:
+      (configs.find((c) => c.label === '无人机用途')?.value as string) ||
+      '_NotUse',
+    threshold:
+      Number(configs.find((c) => c.label === '心情阈值')?.value) || 0.3,
+    replenish:
+      (configs.find((c) => c.label === '源石碎片自动补货')?.value as boolean) ||
+      false,
+    dorm_notstationed_enabled:
+      (configs.find((c) => c.label === '启用宿舍未进驻')?.value as boolean) ||
+      false,
+    dorm_trust_enabled:
+      (configs.find((c) => c.label === '填充信赖未满干员')?.value as boolean) ||
+      false,
+  }),
+  Award: (configs) => ({
+    award:
+      (configs.find((c) => c.label === '领取任务奖励')?.value as boolean) ??
+      true,
+    mail:
+      (configs.find((c) => c.label === '领取邮件奖励')?.value as boolean) ??
+      false,
+    recruit:
+      (configs.find((c) => c.label === '使用免费单抽')?.value as boolean) ??
+      false,
+  }),
+  Mall: (configs) => ({
+    shopping:
+      (configs.find((c) => c.label === '购买商品')?.value as boolean) ?? false,
+    buy_first: (
+      (configs.find((c) => c.label === '优先购买')?.value as string) || ''
+    )
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+    blacklist: (
+      (configs.find((c) => c.label === '黑名单')?.value as string) || ''
+    )
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  }),
 }
 
 const currentTask = ref<string>('开始唤醒')
@@ -178,7 +212,6 @@ const taskConfigs = reactive<Record<string, TaskConfig[]>>({
       value: false,
     },
   ],
-
   领取奖励: [
     {
       label: '领取任务奖励',
@@ -243,118 +276,32 @@ const configKeyMap: Record<string, Record<string, string>> = {
     黑名单: 'blacklist',
   },
 }
-function convertStartUpConfig(configs: TaskConfig[]): StartUpParams {
-  const clientTypeMap: Record<string, string> = {
-    官服: 'Official',
-    B服: 'Bilibili',
-  }
-  return {
-    client_type:
-      clientTypeMap[
-        configs.find((c) => c.label === '客户端版本')?.value as string
-      ] || '',
-    start_game_enabled:
-      (configs.find((c) => c.label === '自动启动客户端')?.value as boolean) ||
-      false,
-  }
-}
 
-function convertFightConfig(configs: TaskConfig[]): FightParams {
-  return {
-    stage: (configs.find((c) => c.label === '关卡名称')?.value as string) || '',
-    series: Number(configs.find((c) => c.label === '连续作战次数')?.value) || 1,
-  }
-}
-
-function convertInfrastConfig(configs: TaskConfig[]): InfrastParams {
-  return {
-    facility: (configs.find((c) => c.label === '设施列表')
-      ?.value as string[]) || ['Mfg'],
-    drones:
-      (configs.find((c) => c.label === '无人机用途')?.value as string) ||
-      '_NotUse',
-    threshold:
-      Number(configs.find((c) => c.label === '心情阈值')?.value) || 0.3,
-    replenish:
-      (configs.find((c) => c.label === '源石碎片自动补货')?.value as boolean) ||
-      false,
-    dorm_notstationed_enabled:
-      (configs.find((c) => c.label === '启用宿舍未进驻')?.value as boolean) ||
-      false,
-    dorm_trust_enabled:
-      (configs.find((c) => c.label === '填充信赖未满干员')?.value as boolean) ||
-      false,
-  }
-}
-
-function convertAwardConfig(configs: TaskConfig[]): AwardParams {
-  return {
-    award:
-      (configs.find((c) => c.label === '领取任务奖励')?.value as boolean) ??
-      true,
-    mail:
-      (configs.find((c) => c.label === '领取邮件奖励')?.value as boolean) ??
-      false,
-    recruit:
-      (configs.find((c) => c.label === '使用免费单抽')?.value as boolean) ??
-      false,
-  }
-}
-
-function convertMallConfig(configs: TaskConfig[]): MallParams {
-  return {
-    shopping:
-      (configs.find((c) => c.label === '购买商品')?.value as boolean) ?? false,
-    buy_first: (
-      (configs.find((c) => c.label === '优先购买')?.value as string) || ''
-    )
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean),
-    blacklist: (
-      (configs.find((c) => c.label === '黑名单')?.value as string) || ''
-    )
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean),
-  }
-}
-
-async function updateTaskConfig(enable: boolean): Promise<void> {
-  const taskType = taskTypeMap[currentTask.value]
+async function updateTaskConfig(
+  taskName: string,
+  enable: boolean,
+  fullUpdate: boolean = false,
+): Promise<void> {
+  const taskType = taskTypeMap[taskName]
   if (!taskType) return
 
   try {
     const taskIndex = navigation.value.findIndex(
-      (item) => item.name === currentTask.value,
+      (item) => item.name === taskName,
     )
-    let baseParams = { enable, index: taskIndex }
-    let taskParams = {}
+    const baseParams: TaskParams = { enable, index: taskIndex }
 
-    // 根据任务类型添加特定参数
-    if (taskType === 'StartUp') {
-      taskParams = convertStartUpConfig(taskConfigs[currentTask.value])
-    } else if (taskType === 'Fight') {
-      taskParams = convertFightConfig(taskConfigs[currentTask.value])
-    } else if (taskType === 'Infrast') {
-      taskParams = convertInfrastConfig(taskConfigs[currentTask.value])
-    } else if (taskType === 'Award') {
-      taskParams = convertAwardConfig(taskConfigs[currentTask.value])
-    } else if (taskType === 'Mall') {
-      taskParams = convertMallConfig(taskConfigs[currentTask.value])
-    }
-
-    const params = {
-      ...baseParams,
-      ...taskParams,
-    }
+    const params =
+      fullUpdate && taskConverters[taskType]
+        ? { ...baseParams, ...taskConverters[taskType](taskConfigs[taskName]) }
+        : baseParams
 
     console.log('name:', taskType)
     console.log('params:', params)
 
     await invoke('update_config', { name: taskType, params })
   } catch (error) {
-    console.error('更新任务配置失败:', error)
+    console.error(`更新任务配置失败 (${taskType}):`, error)
     throw error
   }
 }
@@ -372,13 +319,10 @@ async function toggleTask(): Promise<void> {
     }
   } catch (error) {
     isRunning.value = false
-    const errorMessage =
-      typeof error === 'string'
-        ? error
-        : error instanceof Error
-          ? error.message
-          : '未知错误'
-    console.error('任务执行失败:', errorMessage)
+    console.error(
+      '任务执行失败:',
+      error instanceof Error ? error.message : String(error),
+    )
     throw error
   }
 }
@@ -387,40 +331,22 @@ async function updateTaskEnable(
   taskName: string,
   enable: boolean,
 ): Promise<void> {
-  const taskType = taskTypeMap[taskName]
-  if (!taskType) return
-
-  try {
-    const taskIndex = navigation.value.findIndex(
-      (item) => item.name === taskName,
-    )
-    await invoke('update_config', {
-      name: taskType,
-      params: { enable, index: taskIndex },
-    })
-  } catch (error) {
-    console.error('更新任务启用状态失败:', error)
-    throw error
-  }
+  await updateTaskConfig(taskName, enable, false)
 }
+
 export const useTaskState = () => {
   const { configs, loadConfigs: loadConfigsBase } = useConfig()
 
-  const loadConfigs = () => {
-    return loadConfigsBase(
-      navigation.value,
-      taskTypeMap,
-      taskConfigs,
-      configKeyMap,
-    )
-  }
+  const loadConfigs = () =>
+    loadConfigsBase(navigation.value, taskTypeMap, taskConfigs, configKeyMap)
 
   return {
     currentTask,
     taskConfigs,
     isRunning,
     toggleTask,
-    updateTaskConfig,
+    updateTaskConfig: (enable: boolean) =>
+      updateTaskConfig(currentTask.value, enable, true),
     updateTaskEnable,
     navigation,
     configs,
