@@ -12,7 +12,8 @@
       <ul role="list" class="flex flex-col items-center space-y-1">
         <li v-for="item in navigation" :key="item.name">
           <a
-            :href="item.href"
+            href="#"
+            @click.prevent="handleNavClick(item.name.toLowerCase())"
             :class="[
               item.current
                 ? 'bg-indigo-100 text-indigo-600 dark:bg-gray-700 dark:text-white'
@@ -24,7 +25,7 @@
               :is="item.icon"
               class="size-6 shrink-0"
               aria-hidden="true"
-            ></component>
+            />
             <span class="sr-only">{{ item.name }}</span>
           </a>
         </li>
@@ -36,9 +37,41 @@
 <script setup lang="ts">
 import { Cog8ToothIcon, HomeIcon, PlayIcon } from '@heroicons/vue/24/outline'
 
-const navigation = [
+import { type Ref, inject, ref, watch } from 'vue'
+
+const currentView = inject<Ref<string>>('currentView')
+const setCurrentView = inject<(view: string) => void>('setCurrentView')
+
+const navigation = ref([
   { name: 'Dashboard', href: '#', icon: HomeIcon, current: true },
   { name: 'Fight', href: '#', icon: PlayIcon, current: false },
   { name: 'Setting', href: '#', icon: Cog8ToothIcon, current: false },
-]
+])
+
+if (currentView) {
+  watch(currentView, (newView) => {
+    navigation.value.forEach((item) => {
+      item.current =
+        (item.name.toLowerCase() === 'dashboard' && newView === 'main') ||
+        (item.name.toLowerCase() === 'setting' && newView === 'settings') ||
+        (item.name.toLowerCase() === 'fight' && newView === 'fight')
+    })
+  })
+}
+
+const handleNavClick = (view: string) => {
+  if (!setCurrentView) return
+
+  if (view === 'dashboard') {
+    setCurrentView('main')
+  } else if (view === 'setting') {
+    setCurrentView('settings')
+  } else if (view === 'fight') {
+    setCurrentView('fight')
+  }
+
+  navigation.value.forEach((item) => {
+    item.current = item.name.toLowerCase() === view
+  })
+}
 </script>
