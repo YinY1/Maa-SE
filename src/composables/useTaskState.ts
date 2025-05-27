@@ -26,6 +26,34 @@ interface TaskParams {
 type TaskConverter = (configs: TaskConfig[]) => TaskParams
 
 const taskConverters: Record<string, TaskConverter> = {
+  Recruit: (configs) => {
+    const confirmStars = []
+    const selectStars = []
+    for (let i = 1; i <= 5; i++) {
+      const confirmEnabled =
+        (configs.find((c) => c.label === `自动确认${i}星`)?.value as boolean) ??
+        false
+      if (confirmEnabled) {
+        confirmStars.push(i)
+        selectStars.push(i)
+      }
+    }
+    return {
+      enable: true,
+      refresh:
+        (configs.find((c) => c.label === '自动刷新3星Tags')
+          ?.value as boolean) ?? false,
+      select: selectStars,
+      confirm: confirmStars,
+      times:
+        Number(
+          configs.find((c) => c.label === '每次执行时最大招募次数')?.value,
+        ) || 0,
+      expedite:
+        (configs.find((c) => c.label === '自动使用加急许可')
+          ?.value as boolean) ?? false,
+    }
+  },
   StartUp: (configs) => ({
     client_type:
       { 官服: 'Official', B服: 'Bilibili' }[
@@ -106,9 +134,53 @@ const taskTypeMap: Record<string, string> = {
   基建换班: 'Infrast',
   领取奖励: 'Award',
   获取信用: 'Mall',
+  自动公招: 'Recruit',
 }
 
 const taskConfigs = reactive<Record<string, TaskConfig[]>>({
+  自动公招: [
+    {
+      label: '自动刷新3星Tags',
+      type: 'checkbox',
+      value: false,
+    },
+    {
+      label: '自动使用加急许可',
+      type: 'checkbox',
+      value: false,
+    },
+    {
+      label: '每次执行时最大招募次数',
+      type: 'select',
+      value: '0',
+      options: ['0', '1', '2', '3', '4'],
+    },
+    {
+      label: '自动确认1星',
+      type: 'checkbox',
+      value: false,
+    },
+    {
+      label: '自动确认2星',
+      type: 'checkbox',
+      value: false,
+    },
+    {
+      label: '自动确认3星',
+      type: 'checkbox',
+      value: false,
+    },
+    {
+      label: '自动确认4星',
+      type: 'checkbox',
+      value: false,
+    },
+    {
+      label: '自动确认5星',
+      type: 'checkbox',
+      value: false,
+    },
+  ],
   开始唤醒: [
     {
       label: '客户端版本',
@@ -275,6 +347,16 @@ const configKeyMap: Record<string, Record<string, string>> = {
     优先购买: 'buy_first',
     黑名单: 'blacklist',
   },
+  自动公招: {
+    自动刷新3星Tags: 'refresh',
+    自动使用加急许可: 'expedite',
+    每次执行时最大招募次数: 'times',
+    自动确认1星: 'confirm_1',
+    自动确认2星: 'confirm_2',
+    自动确认3星: 'confirm_3',
+    自动确认4星: 'confirm_4',
+    自动确认5星: 'confirm_5',
+  },
 }
 
 async function updateTaskConfig(
@@ -300,6 +382,8 @@ async function updateTaskConfig(
     console.log('params:', params)
 
     await invoke('update_config', { name: taskType, params })
+    console.log('更新任务配置成功 (', taskType, ')')
+    console.log('更新后的配置:', params)
   } catch (error) {
     console.error(`更新任务配置失败 (${taskType}):`, error)
     throw error
