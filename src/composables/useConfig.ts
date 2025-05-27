@@ -48,10 +48,18 @@ async function loadConfigs(
 
       taskConfigList.forEach((config) => {
         const key = configKeyMap[item.name]?.[config.label]
-        const configValue = taskConfig[key]
-        if (!key || configValue === undefined) return
 
-        config.value = updateConfigValue(config, configValue, taskType)
+        // 特殊处理星级
+        if (taskType === 'Recruit' && config.label.startsWith('自动确认')) {
+          const star = parseInt(
+            config.label.replace('自动确认', '').replace('星', ''),
+          )
+          config.value =
+            Array.isArray(taskConfig.confirm) &&
+            taskConfig.confirm.includes(star)
+        } else if (key && taskConfig[key] !== undefined) {
+          config.value = updateConfigValue(config, taskConfig[key], taskType)
+        }
       })
     })
   } catch (error) {
