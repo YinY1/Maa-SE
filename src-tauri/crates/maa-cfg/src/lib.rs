@@ -57,7 +57,7 @@ impl FromStr for ConfigType {
 
 pub type ConfigValue = serde_json::Value;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct Config {
     #[serde(skip)]
     path: PathBuf,
