@@ -42,12 +42,12 @@ impl std::io::Write for SeAppender {
 
 #[cfg(feature = "dynamic-log-level")]
 mod dynamic_log {
-    use std::{io, ops::Deref, sync::OnceLock};
+    use std::io;
 
     use anyhow::Context;
     use log::LevelFilter;
     use log4rs::{
-        Config, Handle,
+        Config,
         append::{
             Append,
             rolling_file::{
@@ -78,17 +78,6 @@ mod dynamic_log {
 
     const MAX_LOG_SIZE: u64 = 10_000_000; // 10 MB
     const MAX_LOG_COUNT: u32 = 5;
-
-    #[derive(Default)]
-    pub struct LogHandleState(OnceLock<Handle>);
-
-    impl Deref for LogHandleState {
-        type Target = OnceLock<Handle>;
-
-        fn deref(&self) -> &Self::Target {
-            &self.0
-        }
-    }
 
     struct StringWriter(String);
 

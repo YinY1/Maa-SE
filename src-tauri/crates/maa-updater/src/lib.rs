@@ -1,6 +1,8 @@
 #![deny(warnings)]
 #![feature(error_generic_member_access)]
+#![feature(once_cell_try_insert)]
 
+pub mod download_reporter;
 pub mod errors;
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 pub mod ota;

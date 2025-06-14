@@ -2,12 +2,15 @@ use std::{env::current_dir, ops::Deref, sync::RwLock};
 
 use maa_core::reload_core;
 use maa_updater::{
+    download_reporter::DefaultDownloadReporter,
     updater::{UpdateResult, Updater},
     version::{ClientVersionRequest, Versions},
 };
 use tauri::State;
 
 use crate::{log_error_context, CommandResult};
+
+pub const UPDATE_REPORT_EVENT: &str = "update-report";
 
 pub struct VersionState(RwLock<Versions>);
 
@@ -28,7 +31,7 @@ impl VersionState {
 #[tauri::command]
 pub async fn update(
     target_type: ClientVersionRequest,
-    updater: State<'_, Updater>,
+    updater: State<'_, Updater<DefaultDownloadReporter>>,
     versions: State<'_, VersionState>,
 ) -> CommandResult<UpdateResult> {
     let dst = current_dir().map_err(|e| log_error_context("获取CWD", e))?;
@@ -59,7 +62,7 @@ pub async fn update(
 
 #[tauri::command]
 pub async fn update_resource(
-    updater: State<'_, Updater>,
+    updater: State<'_, Updater<DefaultDownloadReporter>>,
     versions: State<'_, VersionState>,
 ) -> CommandResult<UpdateResult> {
     let dst = current_dir().map_err(|e| log_error_context("获取CWD", e))?;

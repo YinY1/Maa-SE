@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Context;
 use fs_extra::dir::{CopyOptions, move_dir};
-use log::{debug, trace, warn};
+use log::{debug, info, trace, warn};
 use reqwest::header::ACCEPT;
 use semver::Version;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -15,6 +15,7 @@ use tokio::{fs::File, io::AsyncWriteExt, join, task::spawn_blocking};
 
 use crate::{
     GITHUB_RESOURCE_URL, RESOURCE_SUMMARY, VERSION_SUMMARY, ZIP_FILE_SUFFIX, decompress,
+    download_reporter::{DownloadReporter, DownloadReporterGuard},
     errors::{UpdateDetailedResult, UpdateErrorDetails},
     version::{ClientVersion, ClientVersionRequest, ResourceVersion},
 };
@@ -76,25 +77,21 @@ impl Drop for UpdaterGuard<'_> {
     }
 }
 
-pub struct Updater {
+pub struct Updater<R: DownloadReporter> {
     client: reqwest::Client,
     updating: AtomicBool,
+    download_reporter: R,
 }
 
-impl Default for Updater {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Updater {
-    pub fn new() -> Self {
+impl<R: DownloadReporter> Updater<R> {
+    pub fn new(download_reporter: R) -> Self {
         Self {
             client: reqwest::Client::builder()
                 .user_agent(USER_AGENT)
                 .build()
                 .unwrap(),
             updating: AtomicBool::new(false),
+            download_reporter,
         }
     }
 
@@ -285,7 +282,7 @@ impl Updater {
 }
 
 /// download
-impl Updater {
+impl<R: DownloadReporter> Updater<R> {
     pub async fn download_full_package(&self, details: &Details, dst: &Path) -> anyhow::Result<()> {
         // TODO: 使用tempdir in 避免意外关闭时没删除临时目录，可以后期手动删除
         let temp_dir = tempdir().context("create temp dir")?;
@@ -370,16 +367,24 @@ impl Updater {
                 msg: "create target file",
                 source: e.into(),
             })?;
+
+        let reporter = self
+            .download_reporter
+            .start(resp.content_length().unwrap_or(0) as _)
+            .context("start download reporter")?;
+        info!("下载开始");
         while let Some(chunk) = resp.chunk().await? {
-            // TODO: 添加下载进度回报
             file.write_all(&chunk)
                 .await
                 .map_err(|e| UpdateErrorDetails::IOError {
                     msg: "write chunk",
                     source: e.into(),
                 })?;
+            reporter.report(chunk.len()).await.context("report chunk")?;
         }
-        trace!("download finish");
+        info!("下载完成");
+        drop(reporter);
+
         file.flush()
             .await
             .map_err(|e| UpdateErrorDetails::IOError {
