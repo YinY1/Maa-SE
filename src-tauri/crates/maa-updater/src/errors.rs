@@ -43,4 +43,7 @@ pub enum UpdateErrorDetails {
 
     #[error("tokio error: {0}")]
     TokioError(#[from] JoinError),
+
+    #[error("internal error: {0:?}")]
+    Internal(#[from] anyhow::Error),
 }

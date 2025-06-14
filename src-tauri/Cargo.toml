@@ -31,6 +31,7 @@ dashmap = "6"
 itertools = "0.14"
 crossbeam-channel = "0.5"
 thiserror = "2"
+async-trait = "0.1"
 
 [workspace.dependencies.maa-types]
 git = "https://github.com/MaaAssistantArknights/maa-cli"

@@ -4,6 +4,7 @@ use tempfile::tempdir;
 
 use crate::{
     ZIP_FILE_SUFFIX, decompress,
+    download_reporter::DownloadReporter,
     errors::{UpdateDetailedResult, UpdateErrorDetails},
     updater::{Details, Updater},
     version::ClientVersion,
@@ -11,7 +12,7 @@ use crate::{
 
 pub const OTA_PREFIX: &str = "MAAComponent-OTA";
 
-impl Updater {
+impl<R: DownloadReporter> Updater<R> {
     pub async fn download_ota_package(
         &self,
         current_version: &ClientVersion,

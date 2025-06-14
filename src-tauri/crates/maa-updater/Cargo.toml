@@ -19,6 +19,7 @@ semver.workspace = true
 chrono.workspace = true
 fs_extra.workspace = true
 thiserror.workspace = true
+async-trait.workspace = true
 
 [target.'cfg(linux)'.dependencies]
 flate2.workspace = true

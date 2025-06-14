@@ -1,6 +1,7 @@
 use anyhow::Context;
+use log4rs::Handle;
 use maa_cfg::{Config, Parameters};
-use maa_core::tauri_logger::{log_config, LogHandleState};
+use maa_core::tauri_logger::log_config;
 use tauri::{async_runtime::spawn_blocking, AppHandle, State};
 
 use crate::{log_error_context, CommandResult};
@@ -48,12 +49,12 @@ pub async fn get_config(configs: State<'_, Config>) -> CommandResult<Config> {
 pub async fn set_log_level(
     level: &str,
     app_handle: AppHandle,
-    log_handle: State<'_, LogHandleState>,
+    log_handle: State<'_, Handle>,
 ) -> CommandResult<()> {
     let level = level
         .parse()
         .map_err(|e: log::ParseLevelError| log_error_context("run daily", e))?;
     let config = log_config(app_handle, level).map_err(|e| log_error_context("run daily", e))?;
-    log_handle.get().unwrap().set_config(config);
+    log_handle.set_config(config);
     Ok(())
 }
