@@ -15,6 +15,7 @@ use tokio::{fs::File, io::AsyncWriteExt, join, task::spawn_blocking};
 
 use crate::{
     GITHUB_RESOURCE_URL, RESOURCE_SUMMARY, VERSION_SUMMARY, ZIP_FILE_SUFFIX, decompress,
+    errors::{UpdateDetailedResult, UpdateErrorDetails},
     version::{ClientVersion, ClientVersionRequest, ResourceVersion},
 };
 
@@ -329,7 +330,7 @@ impl Updater {
         suffix: &str,
         details: &Details,
         temp_dir: TempDir,
-    ) -> anyhow::Result<std::fs::File> {
+    ) -> UpdateDetailedResult<std::fs::File> {
         let name = format!("{}{}-{}", prefix, details.version, suffix);
         trace!("try to find url of asset `{name}`");
         let url = details
@@ -337,22 +338,27 @@ impl Updater {
             .assets
             .iter()
             .find_map(|asset| (asset.name == name).then_some(&asset.download_url))
-            .ok_or(anyhow::anyhow!("no match package"))?;
+            .ok_or_else(|| UpdateErrorDetails::VersionError("no match pkg"))?;
 
         let temp_path = temp_dir.path().join(name);
         self.download_chunks(url, &temp_path).await
     }
 
-    pub async fn download_chunks(&self, url: &str, dst: &Path) -> anyhow::Result<std::fs::File> {
+    pub async fn download_chunks(
+        &self,
+        url: &str,
+        dst: &Path,
+    ) -> UpdateDetailedResult<std::fs::File> {
         trace!("start download to `{dst:?}` from `{url}`");
         let mut resp = self
             .client
             .get(url)
             .header(ACCEPT, HEADER_DOWNLOAD)
             .send()
-            .await?
+            .await
+            .map_err(UpdateErrorDetails::DownloadError)?
             .error_for_status()
-            .context("fetch release")?;
+            .map_err(UpdateErrorDetails::DownloadError)?;
 
         let mut file = File::options()
             .create_new(true)
@@ -360,25 +366,41 @@ impl Updater {
             .append(true)
             .open(dst)
             .await
-            .context("create target file")?;
+            .map_err(|e| UpdateErrorDetails::IOError {
+                msg: "create target file",
+                source: e.into(),
+            })?;
         while let Some(chunk) = resp.chunk().await? {
             // TODO: 添加下载进度回报
-            file.write_all(&chunk).await?;
+            file.write_all(&chunk)
+                .await
+                .map_err(|e| UpdateErrorDetails::IOError {
+                    msg: "write chunk",
+                    source: e.into(),
+                })?;
         }
         trace!("download finish");
-        file.flush().await?;
+        file.flush()
+            .await
+            .map_err(|e| UpdateErrorDetails::IOError {
+                msg: "flush file",
+                source: e.into(),
+            })?;
 
         Ok(file.into_std().await)
     }
 }
 
-async fn move_dir_async(from: PathBuf, to: PathBuf) -> anyhow::Result<u64> {
+async fn move_dir_async(from: PathBuf, to: PathBuf) -> UpdateDetailedResult<u64> {
     trace!("move dir from `{from:?}` to `{to:?}`");
     spawn_blocking(move || {
         let options = CopyOptions::new().overwrite(true);
         move_dir(from, to, &options)
     })
     .await
-    .context("spawn blocking handle")?
-    .context("move dir")
+    .map_err(UpdateErrorDetails::TokioError)?
+    .map_err(|e| UpdateErrorDetails::IOError {
+        msg: "move dir",
+        source: e,
+    })
 }

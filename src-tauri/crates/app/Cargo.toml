@@ -20,6 +20,7 @@ tauri-build = { workspace = true, features = [] }
 [dependencies]
 tauri = { workspace = true, features = [] }
 tauri-plugin-opener = { workspace = true, features = [] }
+serde.workspace = true
 serde_json.workspace = true
 maa-sys.workspace = true
 maa-types.workspace = true

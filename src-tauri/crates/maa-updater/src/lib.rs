@@ -1,5 +1,7 @@
 #![deny(warnings)]
+#![feature(error_generic_member_access)]
 
+pub mod errors;
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 pub mod ota;
 pub mod updater;
@@ -7,7 +9,7 @@ pub mod version;
 
 use std::{fs::File, path::PathBuf};
 
-use anyhow::Context;
+use errors::{UpdateDetailedResult, UpdateErrorDetails};
 use tokio::task::spawn_blocking;
 
 pub const VERSION_SUMMARY: &str =
@@ -34,22 +36,25 @@ pub const ZIP_FILE_SUFFIX: &str = constcat::concat!("linux-", std::env::consts::
 #[cfg(target_os = "macos")]
 pub const ZIP_FILE_SUFFIX: &str = "macos-runtime-universal.zip";
 
-pub(crate) async fn decompress(file: File, dst: PathBuf) -> anyhow::Result<()> {
+pub(crate) async fn decompress(file: File, dst: PathBuf) -> UpdateDetailedResult<()> {
     log::trace!("decompress file `{:?}` to dst: `{:?}`", file, dst);
     match spawn_blocking(move || decompress_impl(file, dst)).await {
         Ok(res) => res,
-        Err(e) => anyhow::bail!(e),
+        Err(e) => Err(UpdateErrorDetails::TokioError(e)),
     }
 }
 
 #[cfg(not(target_os = "linux"))]
-fn decompress_impl(file: File, dst: PathBuf) -> anyhow::Result<()> {
-    let mut archive = zip::ZipArchive::new(file).context("read arxive")?;
-    archive.extract(dst).context("extract zip")
+fn decompress_impl(file: File, dst: PathBuf) -> UpdateDetailedResult<()> {
+    let mut archive = zip::ZipArchive::new(file).map_err(UpdateErrorDetails::DecompressError)?;
+    archive
+        .extract(dst)
+        .map_err(UpdateErrorDetails::DecompressError)
 }
 
+// TODO: Error Type
 #[cfg(target_os = "linux")]
-fn decompress_impl(file: File, dst: PathBuf) -> anyhow::Result<()> {
+fn decompress_impl(file: File, dst: PathBuf) -> UpdateDetailedResult<()> {
     let gz = flate2::read::GzDecoder::new(file);
     let mut archive = tar::Archive::new(gz);
     archive.unpack(dst).context("unpack tar.gz")

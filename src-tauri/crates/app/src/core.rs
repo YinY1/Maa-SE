@@ -40,10 +40,8 @@ pub async fn update_config(
 }
 
 #[tauri::command]
-pub async fn get_config(configs: State<'_, Config>) -> CommandResult<String> {
-    serde_json::to_string(configs.inner())
-        .context("serialize configs to string")
-        .map_err(|e| log_error_context("run daily", e))
+pub async fn get_config(configs: State<'_, Config>) -> CommandResult<Config> {
+    Ok(configs.inner().clone())
 }
 
 #[tauri::command]
