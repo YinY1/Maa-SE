@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Context;
 use log4rs::Handle;
 use maa_cfg::{Config, Parameters};
@@ -7,9 +9,14 @@ use tauri::{async_runtime::spawn_blocking, AppHandle, State};
 use crate::{log_error_context, CommandResult};
 
 #[tauri::command]
-pub async fn run_daily(configs: State<'_, Config>) -> CommandResult<()> {
+pub async fn run_daily(configs: State<'_, Arc<Config>>) -> CommandResult<()> {
     let tasks = configs.available_daily_tasks();
-    spawn_blocking(move || maa_core::run_core_tauri(tasks))
+    let adb_cfg = configs
+        .adb_config()
+        .context("get adb config")
+        .map_err(|e| log_error_context("run daily", e))?;
+
+    spawn_blocking(move || maa_core::run_core_tauri(tasks, adb_cfg))
         .await
         .unwrap()
         .map_err(|e| log_error_context("run daily", e))
@@ -30,7 +37,7 @@ pub async fn stop_core() -> CommandResult<()> {
 pub async fn update_config(
     name: String,
     params: Parameters,
-    configs: State<'_, Config>,
+    configs: State<'_, Arc<Config>>,
 ) -> CommandResult<()> {
     let cfg_type = name.parse().unwrap();
     configs
@@ -41,7 +48,7 @@ pub async fn update_config(
 }
 
 #[tauri::command]
-pub async fn get_config(configs: State<'_, Config>) -> CommandResult<Config> {
+pub async fn get_config(configs: State<'_, Arc<Config>>) -> CommandResult<Arc<Config>> {
     Ok(configs.inner().clone())
 }
 

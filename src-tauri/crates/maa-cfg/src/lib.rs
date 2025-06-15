@@ -1,7 +1,7 @@
 #![feature(if_let_guard)]
-#![feature(let_chains)]
 #![deny(warnings)]
 
+pub mod settings;
 pub mod task;
 
 use std::{env::current_dir, fs::create_dir_all, path::PathBuf, str::FromStr};
@@ -14,6 +14,8 @@ use serde::Serialize;
 use strum::{Display, EnumString};
 pub use task::*;
 use tokio::{fs, join};
+
+use crate::settings::{AdbSettings, SettingType};
 
 pub const CFG_DIR: &str = "config";
 pub const DEFAULT_CFG_PATH: &str = "default";
@@ -39,7 +41,7 @@ pub enum Storage {
 pub enum ConfigType {
     Task(TaskType),
     Storage(Storage),
-    Settings,
+    Settings(SettingType),
 }
 
 impl FromStr for ConfigType {
@@ -47,9 +49,9 @@ impl FromStr for ConfigType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "Settings" => Ok(Self::Settings),
+            s if let Ok(s) = s.parse() => Ok(Self::Settings(s)),
             s if let Ok(t) = s.parse() => Ok(Self::Task(t)),
-            s if let Ok(t) = s.parse() => Ok(Self::Storage(t)),
+            s if let Ok(s) = s.parse() => Ok(Self::Storage(s)),
             _ => Err(s.to_string()),
         }
     }
@@ -86,18 +88,18 @@ impl Config {
         };
         let (daily, tools, settings, customs, extra) = join!(
             load_json_obj(get_cfg_path!(path, DAILY_CFG)),
-            load_json_obj(get_cfg_path!(path, DAILY_CFG)),
-            load_json_obj(get_cfg_path!(path, DAILY_CFG)),
-            load_json_obj(get_cfg_path!(path, DAILY_CFG)),
-            load_json_obj(get_cfg_path!(path, DAILY_CFG)),
+            load_json_obj(get_cfg_path!(path, TOOL_STORAGE)),
+            load_json_obj(get_cfg_path!(path, SETTINGS_CFG)),
+            load_json_obj(get_cfg_path!(path, CUSTOMS_CFG)),
+            load_json_obj(get_cfg_path!(path, EXTRA_TASK_CFG)),
         );
 
         let cfgs = DashMap::new();
         cfgs.insert(DAILY_CFG.to_string(), daily.context("load daily")?);
-        cfgs.insert(TOOL_STORAGE.to_string(), tools.context("load daily")?);
-        cfgs.insert(SETTINGS_CFG.to_string(), settings.context("load daily")?);
-        cfgs.insert(CUSTOMS_CFG.to_string(), customs.context("load daily")?);
-        cfgs.insert(EXTRA_TASK_CFG.to_string(), extra.context("load daily")?);
+        cfgs.insert(TOOL_STORAGE.to_string(), tools.context("load tools")?);
+        cfgs.insert(SETTINGS_CFG.to_string(), settings.context("load settings")?);
+        cfgs.insert(CUSTOMS_CFG.to_string(), customs.context("load customs")?);
+        cfgs.insert(EXTRA_TASK_CFG.to_string(), extra.context("load extras")?);
 
         Ok(Self { path, cfgs })
     }
@@ -146,8 +148,11 @@ impl Config {
                     .await
                     .context("write custom-storage.json")
             }
-            ConfigType::Settings => {
-                unimplemented!()
+            ConfigType::Settings(s) => {
+                let path = get_cfg_path!(self.path, SETTINGS_CFG);
+                self.set_and_write_impl(SETTINGS_CFG, path, s.to_string(), params)
+                    .await
+                    .context("write settings.json")
             }
         }
     }
@@ -191,6 +196,16 @@ impl Config {
             .sorted_by_key(|(_, params)| params["index"].as_i64().unwrap_or_default())
             .map(|(name, params)| (name.to_string(), params.to_string()))
             .collect()
+    }
+
+    pub fn adb_config(&self) -> anyhow::Result<AdbSettings> {
+        self.cfgs
+            .get(SETTINGS_CFG)
+            .unwrap()
+            .get(SettingType::Adb.as_ref())
+            .map(|c| serde_json::from_str(c.as_str().unwrap_or_default()))
+            .unwrap_or_else(|| Ok(AdbSettings::default()))
+            .context("parse adb settings")
     }
 }
 

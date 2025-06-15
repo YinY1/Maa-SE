@@ -223,7 +223,7 @@ pub mod stage_types {
 
             self.stats
                 .into_iter()
-                .try_for_each(|stat| writeln!(s, "{}", stat))?;
+                .try_for_each(|stat| writeln!(s, "{stat}"))?;
 
             Ok(s)
         }
