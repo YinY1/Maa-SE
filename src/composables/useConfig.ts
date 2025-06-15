@@ -32,8 +32,7 @@ async function loadConfigs(
   configKeyMap: Record<string, Record<string, string>>,
 ): Promise<void> {
   try {
-    const cfgs = await invoke<string>('get_config')
-    configs.value = JSON.parse(cfgs)
+    configs.value = await invoke<Config>('get_config')
     const dailyConfig = configs.value.daily
 
     navigation.forEach((item) => {
