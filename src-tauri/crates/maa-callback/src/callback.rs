@@ -60,10 +60,10 @@ pub unsafe extern "C" fn default_callback_log(
         Level::Trace => log::trace!("[{}] {}", msg_type, json_str),
     }
 
-    if matches!(msg_type, AsstMsgCode::AllTasksCompleted) {
-        if let Err(e) = STOP_CHAN.tx.send(()) {
-            log::error!("{e}");
-        }
+    if matches!(msg_type, AsstMsgCode::AllTasksCompleted)
+        && let Err(e) = STOP_CHAN.tx.send(())
+    {
+        log::error!("{e}");
     }
 
     // 简化log

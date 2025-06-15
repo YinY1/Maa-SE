@@ -4,7 +4,7 @@ mod core;
 mod updater;
 
 use core::{get_config, run_daily, set_log_level, stop_core, update_config};
-use std::{env::set_current_dir, time::Duration};
+use std::{env::set_current_dir, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use log::error;
@@ -32,7 +32,7 @@ pub async fn run() -> anyhow::Result<()> {
     // build app
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(config_state)
+        .manage(Arc::new(config_state))
         .manage(VersionState::new(version_state))
         .setup(|app| {
             app.manage(init_log(app.handle().clone())?);

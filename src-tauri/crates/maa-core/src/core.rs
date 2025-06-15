@@ -12,10 +12,11 @@ use anyhow::{Context, anyhow, bail};
 use crossbeam_channel::select;
 use log::{debug, trace};
 use maa_callback::callback::STOP_CHAN;
-use maa_cfg::task::TaskQueue;
+use maa_cfg::{
+    settings::{AdbSettings, ExtraAdb},
+    task::TaskQueue,
+};
 use maa_sys::Assistant;
-
-use crate::{ADB_PATH, DEFAULT_ADB_ADDRESS};
 
 const MAA_CORE: &str = constcat::concat!(DLL_PREFIX, "MaaCore", DLL_SUFFIX);
 static LOAD_CORE: OnceLock<()> = OnceLock::new();
@@ -24,6 +25,7 @@ static LOAD_CORE: OnceLock<()> = OnceLock::new();
 pub fn run_core(
     tasks: TaskQueue,
     callback: maa_sys::binding::AsstApiCallback,
+    adb_cfg: AdbSettings,
     arg: Option<*mut c_void>,
 ) -> anyhow::Result<()> {
     LOAD_CORE
@@ -41,13 +43,20 @@ pub fn run_core(
 
     let assistant = Assistant::new(callback, arg);
 
+    trace!("set ex adb");
+    set_connection_extras(&adb_cfg.extra).context("set connection extras")?;
+
     trace!("connect adb");
     assistant
-        .async_connect(ADB_PATH, DEFAULT_ADB_ADDRESS, "", true)
+        .async_connect(
+            adb_cfg.path.as_os_str(),
+            adb_cfg.address.as_str(),
+            adb_cfg.extra.as_ref(),
+            true,
+        )
         .context("connect")?;
 
     trace!("append tasks");
-
     for (name, params) in tasks {
         let id = assistant
             .append_task(name.as_str(), params.as_str())
@@ -84,8 +93,18 @@ pub fn reload_core() -> anyhow::Result<()> {
 }
 
 #[cfg(feature = "tauri-handle")]
-pub fn run_core_tauri(tasks: TaskQueue) -> anyhow::Result<()> {
+pub fn run_core_tauri(tasks: TaskQueue, adb_cfg: AdbSettings) -> anyhow::Result<()> {
     use maa_callback::callback::default_callback_log;
 
-    run_core(tasks, Some(default_callback_log), None)
+    run_core(tasks, Some(default_callback_log), adb_cfg, None)
+}
+
+pub fn set_connection_extras(ex: &ExtraAdb) -> anyhow::Result<()> {
+    match ex {
+        ExtraAdb::None => Ok(()),
+        ExtraAdb::MuMuEmulator12(m) => {
+            Assistant::set_connection_extras(ex.as_ref(), m.config().as_str())
+                .context("set connection extras")
+        }
+    }
 }

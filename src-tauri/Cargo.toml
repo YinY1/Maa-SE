@@ -36,10 +36,12 @@ async-trait = "0.1"
 [workspace.dependencies.maa-types]
 git = "https://github.com/MaaAssistantArknights/maa-cli"
 package = "maa-types"
+rev = "6cc716a4a49adaf877d6ad7ea54b2ad39f996fb3"
 
 [workspace.dependencies.maa-sys]
 git = "https://github.com/MaaAssistantArknights/maa-cli"
 package = "maa-sys"
+rev = "6cc716a4a49adaf877d6ad7ea54b2ad39f996fb3"
 features = ["runtime"]
 
 [profile.release]
